@@ -22,6 +22,10 @@ pub enum Error {
     DuplicateTile {
         index: usize,
     },
+    NotEven {
+        name: &'static str,
+        actual: usize,
+    },
     BufferTooSmall {
         buffer: &'static str,
         required: usize,
@@ -48,6 +52,9 @@ impl fmt::Display for Error {
                 write!(f, "tile index {index} is outside 0..{tile_count}")
             }
             Self::DuplicateTile { index } => write!(f, "tile index {index} occurs more than once"),
+            Self::NotEven { name, actual } => {
+                write!(f, "{name} must be even for 4:2:0 chroma, got {actual}")
+            }
             Self::BufferTooSmall {
                 buffer,
                 required,
