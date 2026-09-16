@@ -1,0 +1,12 @@
+[package]
+name = "veilcast-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+description = "Reusable tile permutation plans for decoded video frames"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[dependencies]
