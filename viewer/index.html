@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>VeilCast viewer harness</title>
+<style>
+  body { margin: 0; padding: 16px; font: 14px system-ui, sans-serif; background: #111; color: #ddd; }
+  form { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; margin-bottom: 12px; }
+  label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #999; }
+  input[type=number], input[type=text] { width: 9em; padding: 4px; background: #222; color: #eee; border: 1px solid #444; }
+  input[name=url] { width: 40em; }
+  button { padding: 6px 14px; }
+  .stage { display: flex; gap: 16px; align-items: flex-start; }
+  .stage > div { display: flex; flex-direction: column; gap: 4px; }
+  video, canvas { max-height: 80vh; background: #000; }
+  #status { color: #f88; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<form id="params">
+  <label>video URL <input name="url" type="text" value="/target/experiment/d49672a5defc39413b8979e3dfb5f134-yuv420p/t16m4/plat_native.mp4"></label>
+  <label>or file <input name="file" type="file" accept="video/*"></label>
+  <label>width <input name="width" type="number" value="720"></label>
+  <label>height <input name="height" type="number" value="1280"></label>
+  <label>tile <input name="tile" type="number" value="16"></label>
+  <label>margin <input name="margin" type="number" value="4"></label>
+  <label>seed <input name="seed" type="text" value="20260916"></label>
+  <button type="submit">Load</button>
+</form>
+<div class="stage">
+  <div><span>scrambled (as the platform serves it)</span><video id="video" controls muted loop playsinline crossorigin="anonymous"></video></div>
+  <div><span>restored (WebGL2)</span><canvas id="canvas"></canvas></div>
+</div>
+<pre id="status"></pre>
+
+<script type="module">
+import { createRestorer } from './veilcast.js';
+
+const form = document.getElementById('params');
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const status = document.getElementById('status');
+const gl = canvas.getContext('webgl2', { premultipliedAlpha: false });
+if (!gl) status.textContent = 'WebGL2 is not available';
+
+let restorer = null;
+let frameHandle = 0;
+
+function schedule() {
+  if ('requestVideoFrameCallback' in video) {
+    frameHandle = video.requestVideoFrameCallback(render);
+  } else {
+    frameHandle = requestAnimationFrame(render);
+  }
+}
+
+function render() {
+  if (restorer && video.readyState >= 2) restorer.draw(video);
+  schedule();
+}
+
+function load() {
+  const data = new FormData(form);
+  const params = {
+    width: Number(data.get('width')),
+    height: Number(data.get('height')),
+    tile: Number(data.get('tile')),
+    margin: Number(data.get('margin')),
+    seed: data.get('seed').trim(),
+  };
+  try {
+    restorer?.destroy();
+    restorer = createRestorer(gl, params);
+  } catch (error) {
+    status.textContent = String(error);
+    return;
+  }
+  canvas.width = params.width;
+  canvas.height = params.height;
+  // Display both at the same on-screen height so seams are easy to compare.
+  video.style.height = canvas.style.height = `min(80vh, ${params.height}px)`;
+
+  const file = data.get('file');
+  video.src = file && file.size ? URL.createObjectURL(file) : data.get('url');
+  video.play().catch(() => {});
+  const { uploadWidth, uploadHeight } = restorer.geometry;
+  status.textContent = `plan: ${params.width}x${params.height}, tile ${params.tile}, margin ${params.margin}, upload ${uploadWidth}x${uploadHeight}`;
+}
+
+video.addEventListener('loadedmetadata', () => {
+  const { uploadWidth, uploadHeight } = restorer.geometry;
+  const note = video.videoWidth === uploadWidth && video.videoHeight === uploadHeight
+    ? 'matches the plan'
+    : `differs from the ${uploadWidth}x${uploadHeight} plan; sampling in normalised coordinates`;
+  status.textContent += `\nvideo: ${video.videoWidth}x${video.videoHeight} (${note})`;
+});
+video.addEventListener('error', () => {
+  status.textContent += `\nvideo failed to load: ${video.error?.message ?? 'unknown error'}`;
+});
+
+form.addEventListener('submit', (event) => {
+  event.preventDefault();
+  load();
+});
+
+// Query parameters prefill the form (e.g. ?tile=40&margin=4&t=3); `t` seeks
+// to that time and pauses, which makes headless screenshots reproducible.
+const query = new URLSearchParams(location.search);
+for (const name of ['url', 'width', 'height', 'tile', 'margin', 'seed']) {
+  if (query.has(name)) form.elements[name].value = query.get(name);
+}
+if (query.has('t')) {
+  video.addEventListener('loadedmetadata', () => {
+    video.pause();
+    video.currentTime = Number(query.get('t'));
+  }, { once: true });
+  video.addEventListener('seeked', () => restorer?.draw(video));
+}
+
+load();
+schedule();
+</script>
+</body>
+</html>
