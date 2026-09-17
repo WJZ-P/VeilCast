@@ -23,6 +23,7 @@ pub fn seeded_permutation(tile_count: usize, seed: u64) -> Vec<usize> {
     order
 }
 
+//  一个非常经典的伪随机数生成算法
 fn splitmix64(state: &mut u64) -> u64 {
     *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
     let mut z = *state;
