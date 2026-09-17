@@ -31,3 +31,19 @@ fn splitmix64(state: &mut u64) -> u64 {
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     z ^ (z >> 31)
 }
+
+/// Turns user-entered text into a seed for [`seeded_permutation`].
+///
+/// Text that is a plain decimal number within `u64` is used as that number,
+/// so a numeric seed round-trips through a text field exactly. Anything else
+/// is hashed with 64-bit FNV-1a over its UTF-8 bytes (offset basis
+/// `0xcbf29ce484222325`, prime `0x100000001b3`). Fixed for the same reason
+/// as the permutation itself: the browser side must produce the same seed.
+pub fn seed_from_text(text: &str) -> u64 {
+    if let Ok(number) = text.parse::<u64>() {
+        return number;
+    }
+    text.bytes().fold(0xcbf2_9ce4_8422_2325u64, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
+}

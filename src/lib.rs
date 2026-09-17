@@ -19,6 +19,6 @@ mod yuv;
 
 pub use error::Error;
 pub use frame::{FrameLayout, PixelFormat};
-pub use permutation::seeded_permutation;
+pub use permutation::{seed_from_text, seeded_permutation};
 pub use shuffle::ShufflePlan;
 pub use yuv::{Yuv420Layout, Yuv420Plan};

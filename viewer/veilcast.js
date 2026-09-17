@@ -28,6 +28,22 @@ export function seededPermutation(tileCount, seed) {
   return order;
 }
 
+/**
+ * `seed_from_text`: a plain decimal number within 64 bits is used verbatim,
+ * anything else is hashed with 64-bit FNV-1a over its UTF-8 bytes.
+ */
+export function seedFromText(text) {
+  if (/^\d+$/.test(text)) {
+    const number = BigInt(text);
+    if (number <= MASK64) return number;
+  }
+  let hash = 0xcbf29ce484222325n;
+  for (const byte of new TextEncoder().encode(text)) {
+    hash = ((hash ^ BigInt(byte)) * 0x100000001b3n) & MASK64;
+  }
+  return hash;
+}
+
 /** Tile grid and scrambled-frame geometry for a plan; throws on invalid input. */
 export function planGeometry({ width, height, tile, margin }) {
   for (const [name, value] of Object.entries({ width, height, tile, margin })) {
@@ -96,7 +112,7 @@ export function createRestorer(gl, params) {
   const geometry = planGeometry(params);
   const { columns, rows } = geometry;
 
-  const permutation = seededPermutation(columns * rows, seed);
+  const permutation = seededPermutation(columns * rows, seedFromText(String(seed)));
   const blockOfTile = new Uint32Array(columns * rows);
   permutation.forEach((tileIndex, block) => {
     blockOfTile[tileIndex] = block;

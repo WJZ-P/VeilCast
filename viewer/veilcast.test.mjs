@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { planGeometry, seededPermutation } from './veilcast.js';
+import { planGeometry, seedFromText, seededPermutation } from './veilcast.js';
 
 test('known-answer vectors match veilcast_core', () => {
   assert.deepEqual(seededPermutation(16, 1), [2, 11, 10, 6, 7, 13, 14, 0, 12, 5, 15, 9, 3, 8, 4, 1]);
@@ -35,4 +35,16 @@ test('plan geometry matches ShufflePlan::scrambled_layout', () => {
     uploadHeight: 1920,
   });
   assert.throws(() => planGeometry({ width: 720, height: 1280, tile: 24, margin: 0 }), /divide/);
+});
+
+test('text seeds match veilcast_core::seed_from_text', () => {
+  assert.equal(seedFromText('20260916'), 20260916n);
+  assert.equal(seedFromText('007'), 7n);
+  assert.equal(seedFromText('18446744073709551615'), 2n ** 64n - 1n);
+  assert.equal(seedFromText(''), 0xcbf29ce484222325n);
+  assert.equal(seedFromText('a'), 0xaf63dc4c8601ec8cn);
+  assert.equal(seedFromText('veilcast'), 0x88d44f40babc4fa2n);
+  assert.equal(seedFromText('密码'), 0x0e4025f70675fc15n);
+  assert.equal(seedFromText('-1'), 0x07d00b07b497d12bn);
+  assert.equal(seedFromText('18446744073709551616'), 0xedf2aa6b38fc416dn);
 });
