@@ -10,3 +10,14 @@ description = "Reusable tile permutation plans for decoded video frames"
 unsafe_code = "forbid"
 
 [dependencies]
+
+[workspace]
+members = ["app/src-tauri"]
+
+# Tauri's size guideline; profiles only apply from the workspace root.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
