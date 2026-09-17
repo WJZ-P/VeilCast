@@ -1,8 +1,14 @@
 //! Tauri shell around `veilcast_core`. Commands are the only surface the
-//! frontend sees; keep them thin and let the core crate do the work.
+//! frontend sees; keep them thin and let `ffmpeg.rs` and the core crate do
+//! the work.
+
+pub mod ffmpeg;
 
 use serde::Serialize;
+use tauri::ipc::{Channel, Response};
 use veilcast_core::{Yuv420Layout, Yuv420Plan, seeded_permutation};
+
+use ffmpeg::{JobParams, JobResult, Progress, Tools, VideoInfo};
 
 /// Geometry the UI shows before scrambling: how large the upload will be.
 #[derive(Debug, Serialize)]
@@ -39,11 +45,60 @@ fn plan_preview(
     })
 }
 
+#[tauri::command]
+async fn probe_video(path: String) -> Result<VideoInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || ffmpeg::probe(&Tools::locate()?, &path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// One frame as PNG bytes; the frontend turns it into a blob URL.
+#[tauri::command]
+async fn snapshot(path: String, seconds: f64) -> Result<Response, String> {
+    let png = tauri::async_runtime::spawn_blocking(move || {
+        ffmpeg::snapshot(&Tools::locate()?, &path, seconds)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    Ok(Response::new(png))
+}
+
+/// A video handed to the app at launch: the first CLI argument (so "open
+/// with" and dropping a file onto the executable work) or `VEILCAST_OPEN`.
+#[tauri::command]
+fn initial_file() -> Option<String> {
+    std::env::args()
+        .nth(1)
+        .filter(|arg| !arg.starts_with('-'))
+        .or_else(|| std::env::var("VEILCAST_OPEN").ok())
+        .filter(|path| std::path::Path::new(path).is_file())
+}
+
+/// Scrambles or restores one file. Progress arrives on `on_progress` while
+/// the job runs on a blocking thread; the result is the output path.
+#[tauri::command]
+async fn run_job(params: JobParams, on_progress: Channel<Progress>) -> Result<JobResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        ffmpeg::run_job(&Tools::locate()?, &params, |progress| {
+            let _ = on_progress.send(progress);
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![plan_preview])
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            plan_preview,
+            initial_file,
+            probe_video,
+            snapshot,
+            run_job
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
