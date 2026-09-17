@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { open } from "@tauri-apps/plugin-dialog";
 import { styled } from "@linaria/react";
 
+import { Button } from "./ui";
+
 const Zone = styled.div<{ active: boolean }>`
-  display: grid;
-  place-items: center;
-  min-height: 180px;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 120px;
+  padding: 20px;
   border: 2px dashed ${({ active }) => (active ? "#7c6cff" : "#3a3a48")};
   border-radius: 12px;
   background: ${({ active }) => (active ? "rgba(124, 108, 255, 0.08)" : "transparent")};
@@ -15,23 +21,21 @@ const Zone = styled.div<{ active: boolean }>`
   transition: border-color 120ms ease, background 120ms ease;
 `;
 
-const Paths = styled.ul`
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
+const Current = styled.div`
   font-family: ui-monospace, Consolas, monospace;
   font-size: 12px;
   color: #d0d0dc;
+  word-break: break-all;
 `;
 
 interface Props {
-  onFiles: (paths: string[]) => void;
+  file: string | null;
+  onFile: (path: string) => void;
 }
 
-/** Listens to Tauri's native drag-drop events for the whole window. */
-export function DropZone({ onFiles }: Props) {
+/** Accepts a video via native drag-drop or the system file dialog. */
+export function DropZone({ file, onFile }: Props) {
   const [active, setActive] = useState(false);
-  const [paths, setPaths] = useState<string[]>([]);
 
   useEffect(() => {
     const unlisten = getCurrentWebview().onDragDropEvent((event) => {
@@ -45,28 +49,30 @@ export function DropZone({ onFiles }: Props) {
           break;
         case "drop":
           setActive(false);
-          setPaths(event.payload.paths);
-          onFiles(event.payload.paths);
+          if (event.payload.paths[0]) onFile(event.payload.paths[0]);
           break;
       }
     });
     return () => {
       unlisten.then((stop) => stop());
     };
-  }, [onFiles]);
+  }, [onFile]);
+
+  async function pick() {
+    const chosen = await open({
+      multiple: false,
+      filters: [{ name: "视频", extensions: ["mp4", "mkv", "mov", "webm", "m4v"] }],
+    });
+    if (typeof chosen === "string") onFile(chosen);
+  }
 
   return (
     <Zone active={active}>
-      <div>
-        <p>把视频拖到这里</p>
-        {paths.length > 0 && (
-          <Paths>
-            {paths.map((path) => (
-              <li key={path}>{path}</li>
-            ))}
-          </Paths>
-        )}
-      </div>
+      <span>把视频拖到这里，或者</span>
+      <Button type="button" onClick={pick}>
+        选择视频…
+      </Button>
+      {file && <Current>{file}</Current>}
     </Zone>
   );
 }

@@ -1,53 +1,32 @@
 import { useEffect, useState } from "react";
-import { styled } from "@linaria/react";
 
-import { type PlanParams, type PlanPreview, planPreview } from "../ipc";
+import { type PlanPreview, planPreview } from "../ipc";
+import { Field, Note, Panel, Row } from "./ui";
 
-const Panel = styled.section`
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px 16px;
-  padding: 16px;
-  border-radius: 12px;
-  background: #1c1c24;
-`;
+export interface PlanSettings {
+  width: number;
+  height: number;
+  tile: number;
+  margin: number;
+  seed: string;
+}
 
-const Field = styled.label`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: #8f8fa3;
+interface Props {
+  settings: PlanSettings;
+  onChange: (settings: PlanSettings) => void;
+  /** Whether width/height came from the file rather than the user. */
+  sizeFromFile: boolean;
+}
 
-  input {
-    padding: 6px 8px;
-    border: 1px solid #3a3a48;
-    border-radius: 6px;
-    background: #12121a;
-    color: #e8e8f0;
-    font: inherit;
-    font-size: 14px;
-  }
-`;
-
-const Summary = styled.p<{ error: boolean }>`
-  grid-column: 1 / -1;
-  margin: 0;
-  font-size: 13px;
-  color: ${({ error }) => (error ? "#ff7b7b" : "#c8c8d8")};
-`;
-
-const DEFAULTS: PlanParams = { width: 720, height: 1280, tile: 16, margin: 4 };
-
-/** Tile/margin settings with the resulting upload size, validated by the core crate. */
-export function PlanPanel() {
-  const [params, setParams] = useState<PlanParams>(DEFAULTS);
+/** Tile/margin/seed with the resulting upload size, validated by the core crate. */
+export function PlanPanel({ settings, onChange, sizeFromFile }: Props) {
   const [preview, setPreview] = useState<PlanPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { width, height, tile, margin } = settings;
 
   useEffect(() => {
     let cancelled = false;
-    planPreview(params)
+    planPreview({ width, height, tile, margin })
       .then((result) => {
         if (cancelled) return;
         setPreview(result);
@@ -61,33 +40,44 @@ export function PlanPanel() {
     return () => {
       cancelled = true;
     };
-  }, [params]);
+  }, [width, height, tile, margin]);
 
-  const field = (name: keyof PlanParams, label: string) => (
+  const number = (name: "width" | "height" | "tile" | "margin", label: string, step = 1) => (
     <Field>
       {label}
       <input
         type="number"
         min={0}
-        value={params[name]}
-        onChange={(e) => setParams({ ...params, [name]: Number(e.currentTarget.value) })}
+        step={step}
+        value={settings[name]}
+        onChange={(e) => onChange({ ...settings, [name]: Number(e.currentTarget.value) })}
       />
     </Field>
   );
 
   return (
     <Panel>
-      {field("width", "宽度")}
-      {field("height", "高度")}
-      {field("tile", "tile")}
-      {field("margin", "margin")}
-      <Summary error={error !== null}>
+      <Row>
+        {number("width", sizeFromFile ? "原始宽度（来自文件）" : "原始宽度")}
+        {number("height", sizeFromFile ? "原始高度（来自文件）" : "原始高度")}
+        {number("tile", "tile（偶数）", 2)}
+        {number("margin", "margin（偶数）", 2)}
+        <Field>
+          seed（数字或任意文字）
+          <input
+            type="text"
+            value={settings.seed}
+            onChange={(e) => onChange({ ...settings, seed: e.currentTarget.value })}
+          />
+        </Field>
+      </Row>
+      <Note tone={error ? "error" : undefined}>
         {error
           ? error
           : preview
-            ? `${preview.columns} × ${preview.rows} = ${preview.tile_count} 个 tile，上传尺寸 ${preview.upload_width} × ${preview.upload_height}`
+            ? `${preview.columns} × ${preview.rows} = ${preview.tile_count} 个 tile，打乱后上传尺寸 ${preview.upload_width} × ${preview.upload_height}`
             : "…"}
-      </Summary>
+      </Note>
     </Panel>
   );
 }

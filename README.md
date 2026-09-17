@@ -12,7 +12,8 @@
 - **保护边（margin）**：每个 tile 连同四周 `margin` 像素的邻居一起搬运，还原时丢弃。
   编码器和缩放在块边缘产生的伪影落在被丢弃的边上，这是画质的关键。
 - **种子排列**：`seeded_permutation(tile_count, seed)`，splitmix64 + Fisher-Yates，
-  两端各自生成，排列本身不传输。`viewer/veilcast.js` 有逐位一致的 JS 实现。
+  两端各自生成，排列本身不传输；`seed_from_text` 把用户输入的数字或文字变成种子（FNV-1a 64）。
+  `viewer/veilcast.js` 有逐位一致的 JS 实现。
 - 同一计划复用于多帧，逐帧阶段零堆分配；调用方持有独立的输入、输出缓冲区。
 
 暂不涉及：密钥派生（种子如何来）、参数持久化、编解码、音频、Tauri 壳、油猴脚本本体、并行与 SIMD。
@@ -115,5 +116,5 @@ bash scripts/experiment/tile_size.sh <视频.mp4>
 ## 桌面端
 
 `app/` 是 Tauri 2 + React + Linaria 的桌面端骨架，`app/src-tauri` 是根 workspace 的成员并依赖本 crate。
-目前只有拖放区和参数预览（`plan_preview` 命令调用核心库校验并算出上传尺寸），ffmpeg 流水线尚未接入。
+拖入视频、调 tile / margin / seed、选输出目录，一键加密或解密；ffmpeg 以子进程方式接入，逐帧进度和前后快照都在界面里。
 见 [app/README.md](app/README.md)。
