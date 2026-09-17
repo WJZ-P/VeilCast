@@ -101,8 +101,8 @@ psnr/ssim 的参考就此被改掉；Matroska 把 1/30 s 舍入到毫秒，按�
 ```text
 powershell -ExecutionPolicy Bypass -File scripts/fetch-ffmpeg.ps1   # 首次：下载 ffmpeg 到 tools/ffmpeg/
 cargo fmt --check
-cargo clippy --all-targets -- -D warnings
-cargo test
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
 cargo build --release --example raw_pipe
 node --test viewer/*.test.mjs
 bash scripts/experiment/tile_size.sh <视频.mp4>
@@ -111,3 +111,9 @@ bash scripts/experiment/tile_size.sh <视频.mp4>
 `examples/raw_pipe.rs` 是 stdin→stdout 的裸帧过滤器，实验脚本用它把库接进 ffmpeg 管道。
 `tools/ffmpeg/` 不进 git；`scripts/fetch-ffmpeg.ps1` 下载 gyan.dev 的 essentials 构建并校验 SHA256。
 该构建含 libx264，属 GPL：作为独立进程调用不影响本仓库许可，但打包发行前要确认。
+
+## 桌面端
+
+`app/` 是 Tauri 2 + React + Linaria 的桌面端骨架，`app/src-tauri` 是根 workspace 的成员并依赖本 crate。
+目前只有拖放区和参数预览（`plan_preview` 命令调用核心库校验并算出上传尺寸），ffmpeg 流水线尚未接入。
+见 [app/README.md](app/README.md)。
