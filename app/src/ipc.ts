@@ -8,7 +8,16 @@ export interface PlanParams {
   margin: number;
 }
 
+/** Source padded up to a tile multiple (replicated edge pixels), cropped back on restore. */
+export interface WorkSize {
+  width: number;
+  height: number;
+  pad_right: number;
+  pad_bottom: number;
+}
+
 export interface PlanPreview {
+  work: WorkSize;
   columns: number;
   rows: number;
   tile_count: number;
@@ -53,6 +62,7 @@ export interface Progress {
 export interface JobResult {
   output: string;
   frames: number;
+  work: WorkSize;
   upload_width: number;
   upload_height: number;
 }

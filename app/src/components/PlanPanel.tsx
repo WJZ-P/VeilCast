@@ -18,6 +18,15 @@ interface Props {
   sizeFromFile: boolean;
 }
 
+function describe(preview: PlanPreview): string {
+  const { work } = preview;
+  const padding =
+    work.pad_right || work.pad_bottom
+      ? `右补 ${work.pad_right}、下补 ${work.pad_bottom} 像素 → ${work.width} × ${work.height}，`
+      : "";
+  return `${padding}${preview.columns} × ${preview.rows} = ${preview.tile_count} 个 tile，上传尺寸 ${preview.upload_width} × ${preview.upload_height}`;
+}
+
 /** Tile/margin/seed with the resulting upload size, validated by the core crate. */
 export function PlanPanel({ settings, onChange, sizeFromFile }: Props) {
   const [preview, setPreview] = useState<PlanPreview | null>(null);
@@ -72,11 +81,7 @@ export function PlanPanel({ settings, onChange, sizeFromFile }: Props) {
         </Field>
       </Row>
       <Note tone={error ? "error" : undefined}>
-        {error
-          ? error
-          : preview
-            ? `${preview.columns} × ${preview.rows} = ${preview.tile_count} 个 tile，打乱后上传尺寸 ${preview.upload_width} × ${preview.upload_height}`
-            : "…"}
+        {error ? error : preview ? describe(preview) : "…"}
       </Note>
     </Panel>
   );

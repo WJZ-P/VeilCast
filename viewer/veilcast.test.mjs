@@ -26,15 +26,27 @@ test('every size yields a permutation', () => {
   }
 });
 
-test('plan geometry matches ShufflePlan::scrambled_layout', () => {
+test('plan geometry matches the desktop fit() and ShufflePlan::scrambled_layout', () => {
   assert.deepEqual(planGeometry({ width: 720, height: 1280, tile: 16, margin: 4 }), {
     columns: 45,
     rows: 80,
     block: 24,
+    workWidth: 720,
+    workHeight: 1280,
     uploadWidth: 1080,
     uploadHeight: 1920,
   });
-  assert.throws(() => planGeometry({ width: 720, height: 1280, tile: 24, margin: 0 }), /divide/);
+  // 1078 rows pad up to 1080 for tile 40, exactly like fit() in the app.
+  assert.deepEqual(planGeometry({ width: 1920, height: 1078, tile: 40, margin: 0 }), {
+    columns: 48,
+    rows: 27,
+    block: 40,
+    workWidth: 1920,
+    workHeight: 1080,
+    uploadWidth: 1920,
+    uploadHeight: 1080,
+  });
+  assert.throws(() => planGeometry({ width: 720, height: 1280, tile: 0, margin: 0 }), /positive/);
 });
 
 test('text seeds match veilcast_core::seed_from_text', () => {

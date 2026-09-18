@@ -44,18 +44,28 @@ export function seedFromText(text) {
   return hash;
 }
 
-/** Tile grid and scrambled-frame geometry for a plan; throws on invalid input. */
+/**
+ * Tile grid and scrambled-frame geometry for a plan. `width`/`height` are the
+ * source size; like the desktop app, the grid runs on the source padded up to
+ * a tile multiple (`workWidth`/`workHeight`) and only the source area is shown.
+ */
 export function planGeometry({ width, height, tile, margin }) {
   for (const [name, value] of Object.entries({ width, height, tile, margin })) {
     if (!Number.isInteger(value) || value < 0) throw new Error(`${name} must be a non-negative integer`);
   }
-  if (tile === 0 || width % tile !== 0 || height % tile !== 0) {
-    throw new Error(`tile ${tile} must divide ${width}x${height}`);
-  }
-  const columns = width / tile;
-  const rows = height / tile;
+  if (tile === 0 || width === 0 || height === 0) throw new Error("tile, width and height must be positive");
+  const columns = Math.ceil(width / tile);
+  const rows = Math.ceil(height / tile);
   const block = tile + 2 * margin;
-  return { columns, rows, block, uploadWidth: columns * block, uploadHeight: rows * block };
+  return {
+    columns,
+    rows,
+    block,
+    workWidth: columns * tile,
+    workHeight: rows * tile,
+    uploadWidth: columns * block,
+    uploadHeight: rows * block,
+  };
 }
 
 const VERTEX_SHADER = `#version 300 es

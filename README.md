@@ -53,7 +53,8 @@ fn main() -> Result<(), veilcast_core::Error> {
 
 1. **排列方向**：tile 按从左到右、从上到下编号；`permutation[打乱后的块] = 原始 tile`。
    还原时把块内部的 tile 拷回原位，margin 丢弃。
-2. **尺寸与 stride**：宽高、tile、margin 用像素，stride 用字节。tile 须整除帧宽高，没有隐式裁剪或补齐。
+2. **尺寸与 stride**：宽高、tile、margin 用像素，stride 用字节。tile 须整除帧宽高，没有隐式裁剪或补齐
+   （桌面端在库外面把源片补到 tile 的整数倍、还原后裁回，库本身保持严格）。
    打乱后的布局：`columns × (tile_w + 2·margin)` 宽，`rows × (tile_h + 2·margin)` 高，格式和行尾 padding 与原始布局相同。
    帧边缘之外的 margin 用最近的边缘像素填充。
 3. **缓冲区**：`scramble(original, scrambled)` 和 `restore(scrambled, original)` 各自按对应布局校验长度。
@@ -90,7 +91,8 @@ psnr/ssim 的参考就此被改掉；Matroska 把 1/30 s 舍入到毫秒，按�
 ## 浏览器端还原
 
 `viewer/veilcast.js`：`seededPermutation` 与 Rust 逐位一致（`node --test viewer/*.test.mjs` 对拍已知答案向量），
-`createRestorer(gl, {width, height, tile, margin, seed})` 用一个 fragment shader 完成还原。
+`createRestorer(gl, {width, height, tile, margin, seed})` 用一个 fragment shader 完成还原；
+`width`/`height` 是原始尺寸，网格按补齐到 tile 整数倍的工作尺寸计算，和桌面端一致。
 采样在上传尺寸的归一化坐标里进行，平台缩放视频不影响 tile 网格；bilinear 采样跨过 tile 内边时落在 margin 上，
 那正是原图的邻居像素，所以不会出现接缝。
 

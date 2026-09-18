@@ -35,8 +35,8 @@ const SETTINGS_KEY = "veilcast.settings";
 const DEFAULT_SETTINGS: PlanSettings & { outputDir: string } = {
   width: 720,
   height: 1280,
-  tile: 16,
-  margin: 4,
+  tile: 40,
+  margin: 0,
   seed: "20260916",
   outputDir: "",
 };
