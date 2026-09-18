@@ -8,11 +8,12 @@ use serde::Serialize;
 use tauri::ipc::{Channel, Response};
 use veilcast_core::{Yuv420Layout, Yuv420Plan, seeded_permutation};
 
-use ffmpeg::{JobParams, JobResult, Progress, Tools, VideoInfo};
+use ffmpeg::{JobParams, JobResult, Progress, Tools, VideoInfo, WorkSize};
 
-/// Geometry the UI shows before scrambling: how large the upload will be.
+/// Geometry the UI shows before scrambling: padding, grid and upload size.
 #[derive(Debug, Serialize)]
 struct PlanPreview {
+    work: WorkSize,
     columns: usize,
     rows: usize,
     tile_count: usize,
@@ -20,7 +21,7 @@ struct PlanPreview {
     upload_height: usize,
 }
 
-/// Validates a tile/margin choice against a frame size the same way the
+/// Validates a tile/margin choice against a source size the same way the
 /// scrambler will, so the UI can reject bad settings before touching ffmpeg.
 #[tauri::command]
 fn plan_preview(
@@ -29,14 +30,16 @@ fn plan_preview(
     tile: usize,
     margin: usize,
 ) -> Result<PlanPreview, String> {
-    let layout = Yuv420Layout::packed(width, height).map_err(|e| e.to_string())?;
-    let columns = width / tile.max(1);
-    let rows = height / tile.max(1);
+    let work = ffmpeg::fit(width, height, tile);
+    let layout = Yuv420Layout::packed(work.width, work.height).map_err(|e| e.to_string())?;
+    let columns = work.width / tile.max(1);
+    let rows = work.height / tile.max(1);
     let permutation = seeded_permutation(columns * rows, 0);
     let plan =
         Yuv420Plan::new(layout, tile, tile, margin, &permutation).map_err(|e| e.to_string())?;
     let scrambled = plan.scrambled_layout();
     Ok(PlanPreview {
+        work,
         columns,
         rows,
         tile_count: columns * rows,

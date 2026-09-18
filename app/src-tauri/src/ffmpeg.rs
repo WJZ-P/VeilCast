@@ -102,13 +102,37 @@ impl ColorTags {
     }
 }
 
-/// Geometry recovered from a scrambled file's metadata tag.
+/// Geometry recovered from a scrambled file's metadata tag; `width`/`height`
+/// are the source size before padding.
 #[derive(Debug, Clone, Serialize)]
 pub struct PlanHint {
     pub width: usize,
     pub height: usize,
     pub tile: usize,
     pub margin: usize,
+}
+
+/// The frame size the plan runs on: the source padded up to a multiple of the
+/// tile on the right and bottom edges (replicated edge pixels), and cropped
+/// back after restore. This is how any source size fits a strict tile grid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct WorkSize {
+    pub width: usize,
+    pub height: usize,
+    pub pad_right: usize,
+    pub pad_bottom: usize,
+}
+
+pub fn fit(source_width: usize, source_height: usize, tile: usize) -> WorkSize {
+    let tile = tile.max(1);
+    let width = source_width.div_ceil(tile) * tile;
+    let height = source_height.div_ceil(tile) * tile;
+    WorkSize {
+        width,
+        height,
+        pad_right: width - source_width,
+        pad_bottom: height - source_height,
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -200,8 +224,14 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
         tile: 0,
         margin: 0,
     };
+    let mut source = None;
     for pair in rest.split_whitespace() {
         let (key, value) = pair.split_once('=')?;
+        if key == "source" {
+            let (w, h) = value.split_once('x')?;
+            source = Some((w.parse().ok()?, h.parse().ok()?));
+            continue;
+        }
         let value = value.parse().ok()?;
         match key {
             "width" => hint.width = value,
@@ -210,6 +240,11 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
             "margin" => hint.margin = value,
             _ => {}
         }
+    }
+    // `width`/`height` in the tag are the padded work size; prefer the source size.
+    if let Some((width, height)) = source {
+        hint.width = width;
+        hint.height = height;
     }
     (hint.width > 0 && hint.height > 0 && hint.tile > 0).then_some(hint)
 }
@@ -272,6 +307,7 @@ pub struct Progress {
 pub struct JobResult {
     pub output: String,
     pub frames: u64,
+    pub work: WorkSize,
     pub upload_width: usize,
     pub upload_height: usize,
 }
@@ -283,8 +319,10 @@ pub fn run_job(
     mut on_progress: impl FnMut(Progress),
 ) -> Result<JobResult, String> {
     let info = probe(tools, &params.input)?;
-    let layout = Yuv420Layout::packed(params.width, params.height).map_err(|e| e.to_string())?;
-    let tile_count = (params.width / params.tile.max(1)) * (params.height / params.tile.max(1));
+    // The plan runs on the padded work size; `params.width/height` is the source size.
+    let work = fit(params.width, params.height, params.tile);
+    let layout = Yuv420Layout::packed(work.width, work.height).map_err(|e| e.to_string())?;
+    let tile_count = (work.width / params.tile.max(1)) * (work.height / params.tile.max(1));
     let permutation = seeded_permutation(tile_count, seed_from_text(&params.seed));
     let plan = Yuv420Plan::new(
         layout,
@@ -301,7 +339,11 @@ pub fn run_job(
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("video");
-    let (in_layout, out_layout, output_name) = match params.mode {
+    // Decoder filter brings the input to the plan's input size: scramble pads
+    // the source with replicated edge pixels, restore scales a possibly
+    // platform-rescaled upload back to its exact size. The encoder filter
+    // crops restored frames back to the source size.
+    let (in_layout, out_layout, output_name, decode_filter, encode_filter) = match params.mode {
         Mode::Scramble => {
             if (info.width, info.height) != (params.width, params.height) {
                 return Err(format!(
@@ -310,11 +352,31 @@ pub fn run_job(
                 ));
             }
             let name = format!("{stem}.veilcast-t{}m{}.mp4", params.tile, params.margin);
-            (original, scrambled, name)
+            let pad = if work.pad_right == 0 && work.pad_bottom == 0 {
+                "null".to_string()
+            } else {
+                format!(
+                    "pad={}:{}:0:0,fillborders=right={}:bottom={}:mode=smear",
+                    work.width, work.height, work.pad_right, work.pad_bottom
+                )
+            };
+            (original, scrambled, name, pad, "null".to_string())
         }
         Mode::Restore => {
             let stem = stem.split(".veilcast-").next().unwrap_or(stem);
-            (scrambled, original, format!("{stem}.restored.mp4"))
+            let scale = format!(
+                "scale={}:{}:flags=bicubic",
+                scrambled.width(),
+                scrambled.height()
+            );
+            let crop = format!("crop={}:{}:0:0", params.width, params.height);
+            (
+                scrambled,
+                original,
+                format!("{stem}.restored.mp4"),
+                scale,
+                crop,
+            )
         }
     };
     // An empty output directory means "next to the input".
@@ -336,14 +398,7 @@ pub fn run_job(
     let mut decoder = command(&tools.ffmpeg);
     decoder
         .args(["-v", "error", "-nostats", "-i", &params.input])
-        .args([
-            "-vf",
-            &format!(
-                "scale={}:{}:flags=bicubic",
-                in_layout.width(),
-                in_layout.height()
-            ),
-        ])
+        .args(["-vf", &decode_filter])
         .args(["-f", "rawvideo", "-pix_fmt", "yuv420p", "-"])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -368,6 +423,7 @@ pub fn run_job(
             "-c:a",
             "copy",
         ])
+        .args(["-vf", &encode_filter])
         .args([
             "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p",
         ])
@@ -377,8 +433,8 @@ pub fn run_job(
         encoder.args([
             "-metadata",
             &format!(
-                "comment={METADATA_PREFIX} width={} height={} tile={} margin={}",
-                params.width, params.height, params.tile, params.margin
+                "comment={METADATA_PREFIX} width={} height={} tile={} margin={} source={}x{}",
+                work.width, work.height, params.tile, params.margin, params.width, params.height
             ),
         ]);
     }
@@ -452,6 +508,7 @@ pub fn run_job(
     Ok(JobResult {
         output: output_path.to_string_lossy().into_owned(),
         frames: done,
+        work,
         upload_width: scrambled.width(),
         upload_height: scrambled.height(),
     })
