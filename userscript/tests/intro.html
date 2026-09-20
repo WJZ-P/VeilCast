@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>VeilCast userscript intro-QR check</title>
+<style>
+  body { background: #111827; color: #e5e7eb; font: 14px/1.5 system-ui,sans-serif; margin: 24px; }
+  .bpx-player-primary-area { position: relative; width: 360px; height: 640px; background: #000; }
+  .bpx-player-video-area, .bpx-player-video-perch, .bpx-player-video-wrap { position: relative; width: 100%; height: 100%; }
+  video { width: 100%; height: 100%; object-fit: contain; }
+  .video-toolbar-left { display: flex; align-items: center; }
+  .video-toolbar-left-main { display: flex; gap: 24px; }
+  [data-result=pass] { color: #86efac; }
+  [data-result=fail] { color: #fca5a5; }
+</style>
+<h1>片头二维码 → 自动应用 → 自动启用</h1>
+<p>加载一个已抹掉元数据、被转码到 360p 的加密文件；脚本必须在第一秒内读到参数并自行启用还原。
+   需要先跑 <code>cargo test -p veilcast-app --test pipeline</code> 生成 <code>target/tmp/pipeline-intro/low.mp4</code>。</p>
+<div id="arc_toolbar_report"><div class="video-toolbar-left">
+  <div class="video-toolbar-left-main"><button>点赞</button><button>投币</button><button>收藏</button><button>分享</button></div>
+</div></div>
+<div class="bpx-player-primary-area"><div class="bpx-player-video-area"><div class="bpx-player-video-perch">
+  <div class="bpx-player-video-wrap"><video muted playsinline src="/target/tmp/pipeline-intro/low.mp4"></video></div>
+</div></div></div>
+<p id="summary">测试运行中…</p>
+<script>
+  const saved = new Map([['veilcast.bilibili.settings.v1', { width: 100, height: 100, tile: 2, margin: 0, seed: 'wrong', invert: true, autoIntro: true }]]);
+  window.GM_getValue = (key, fallback) => saved.get(key) ?? fallback;
+  window.GM_setValue = (key, value) => saved.set(key, structuredClone(value));
+  window.GM_registerMenuCommand = () => 1;
+  window.GM_unregisterMenuCommand = () => {};
+  history.replaceState({}, '', '/video/veilcast-intro-fixture/');
+</script>
+<script src="/userscript/veilcast.user.js"></script>
+<script type="module">
+  const summary = document.getElementById('summary');
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const panel = () => document.getElementById('veilcast-userscript-ui')?.shadowRoot;
+  const ui = () => document.getElementById('veilcast-userscript-ui');
+  try {
+    const video = document.querySelector('video');
+    await video.play();
+    let enabled = false;
+    for (let i = 0; i < 200 && !enabled; i++) {
+      enabled = ui()?.dataset.enabled === 'true';
+      if (!enabled) await sleep(50);
+    }
+    if (!enabled) throw new Error('restoration was not enabled within 10 s');
+    const values = Object.fromEntries(['width', 'height', 'tile', 'margin', 'seed'].map((n) => [n, panel().querySelector(`[name=${n}]`).value]));
+    values.invert = panel().querySelector('[name=invert]').checked;
+    const stored = saved.get('veilcast.bilibili.settings.v1');
+    const expected = { width: '720', height: '1280', tile: '40', margin: '0', seed: '9859592623650262946' };
+    for (const [name, value] of Object.entries(expected)) {
+      if (values[name] !== value) throw new Error(`${name}: form shows ${values[name]}, expected ${value}`);
+      if (String(stored[name]) !== value) throw new Error(`${name}: stored ${stored[name]}, expected ${value}`);
+    }
+    if (values.invert !== false || stored.invert !== false) throw new Error('invert should have been cleared by the header');
+    const canvas = document.querySelector('canvas[data-veilcast-restored]');
+    for (let i = 0; i < 100 && canvas.style.visibility === 'hidden'; i++) await sleep(50);
+    if (canvas.style.visibility === 'hidden') throw new Error('restored canvas never became visible');
+    summary.dataset.result = 'pass';
+    summary.textContent = `pass: header applied at ${video.currentTime.toFixed(2)}s, restoration enabled, seed ${values.seed}, message: ${panel().getElementById('status')?.textContent ?? ''}`;
+  } catch (error) {
+    summary.dataset.result = 'fail';
+    summary.textContent = `FAIL: ${error.stack ?? error}`;
+  }
+</script>

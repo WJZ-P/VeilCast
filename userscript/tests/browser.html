@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>VeilCast userscript browser smoke test</title>
+<style>
+  body { background: #111827; color: #e5e7eb; font: 14px/1.5 system-ui,sans-serif; margin: 24px; }
+  h1 { font-size: 20px; }
+  .bpx-player-primary-area { position: relative; width: min(720px, 95vw); height: 430px; background: #000; }
+  .bpx-player-video-area, .bpx-player-video-perch, .bpx-player-video-wrap { position: relative; width: 100%; height: 100%; }
+  video { width: 100%; height: 100%; object-fit: contain; }
+  .controls { position: absolute; left: 12px; bottom: 12px; z-index: 5; }
+  .bpx-player-primary-area:fullscreen { width: 100%; height: 100%; }
+  #arc_toolbar_report { width: min(720px, 95vw); padding: 16px 0; border-bottom: 1px solid #475569; }
+  .video-toolbar-left { display: flex; align-items: center; overflow: hidden; }
+  .video-toolbar-left-main { display: flex; gap: 24px; flex-shrink: 0; }
+  .video-toolbar-left-main button { color: #9ca3af; background: transparent; border: 0; padding: 0; height: 28px; }
+  .video-owner-state { margin-left: 24px; color: #9ca3af; }
+  #v_desc { margin: 12px 0; }
+  body { padding-bottom: 420px; }
+  button { padding: 7px 12px; cursor: pointer; }
+  #results { max-width: 900px; }
+  [data-result=pass] { color: #86efac; }
+  [data-result=fail] { color: #fca5a5; }
+</style>
+<h1>VeilCast · Rust → 视频 → WebGL2 / 油猴脚本集成验证</h1>
+<p>本地合成数据，DOM 结构模拟用户提供的播放器截图，不连接视频平台。</p>
+<div id="fixture"></div>
+<ol id="results"></ol>
+<p id="summary">测试运行中…</p>
+<script>
+  // Only this local test supplies the userscript manager's APIs.
+  const saved = new Map();
+  window.GM_getValue = (key, fallback) => saved.get(key) ?? fallback;
+  window.GM_setValue = (key, value) => saved.set(key, structuredClone(value));
+  window.GM_registerMenuCommand = () => 1;
+  window.GM_unregisterMenuCommand = () => {};
+  history.replaceState({}, '', '/video/veilcast-local-fixture/');
+</script>
+<script src="/userscript/veilcast.user.js"></script>
+<script type="module" src="/userscript/tests/browser.mjs"></script>
+</html>

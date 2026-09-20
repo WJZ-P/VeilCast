@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { planGeometry, seedFromText, seededPermutation } from './veilcast.js';
+import { encodeIntroHeader, parseIntroHeader, planGeometry, seedFromText, seededPermutation } from './veilcast.js';
 
 test('known-answer vectors match veilcast_core', () => {
   assert.deepEqual(seededPermutation(16, 1), [2, 11, 10, 6, 7, 13, 14, 0, 12, 5, 15, 9, 3, 8, 4, 1]);
@@ -52,6 +52,11 @@ test('plan geometry matches the desktop fit() and ShufflePlan::scrambled_layout'
 test('text seeds match veilcast_core::seed_from_text', () => {
   assert.equal(seedFromText('20260916'), 20260916n);
   assert.equal(seedFromText('007'), 7n);
+  assert.equal(seedFromText('+007'), 7n);
+  assert.equal(seedFromText('+18446744073709551615'), 2n ** 64n - 1n);
+  for (const text of ['1\n', '1\r', ' 1', '1 ', '+', '+1\n']) {
+    assert.notEqual(seedFromText(text), 1n);
+  }
   assert.equal(seedFromText('18446744073709551615'), 2n ** 64n - 1n);
   assert.equal(seedFromText(''), 0xcbf29ce484222325n);
   assert.equal(seedFromText('a'), 0xaf63dc4c8601ec8cn);
@@ -59,4 +64,45 @@ test('text seeds match veilcast_core::seed_from_text', () => {
   assert.equal(seedFromText('密码'), 0x0e4025f70675fc15n);
   assert.equal(seedFromText('-1'), 0x07d00b07b497d12bn);
   assert.equal(seedFromText('18446744073709551616'), 0xedf2aa6b38fc416dn);
+});
+
+test('plan geometry rejects unsafe integer dimensions and derived overflow', () => {
+  assert.throws(() => planGeometry({ width: 2 ** 53, height: 2, tile: 2, margin: 0 }), /safe integer/);
+  assert.throws(() => planGeometry({ width: 2, height: 2, tile: 2, margin: Number.MAX_SAFE_INTEGER }), /safe integer/);
+});
+
+test('intro header vectors match veilcast_core (tests/header.rs)', () => {
+  const sample = { width: 2560, height: 1370, tile: 40, margin: 0, invert: true };
+  assert.equal(encodeIntroHeader(sample), '012560137004000145');
+  assert.equal(
+    encodeIntroHeader({ ...sample, seed: 0x88d44f40babc4fa2n }),
+    '01256013700400010985959262365026294684',
+  );
+  assert.equal(
+    encodeIntroHeader({ width: 720, height: 1280, tile: 16, margin: 4, invert: false }),
+    '010720128001604088',
+  );
+  assert.deepEqual(parseIntroHeader('012560137004000145'), { ...sample, seed: null });
+  assert.deepEqual(parseIntroHeader('01256013700400010985959262365026294684'), {
+    ...sample,
+    seed: 0x88d44f40babc4fa2n,
+  });
+  for (const header of [
+    { ...sample, seed: 2n ** 64n - 1n },
+    { ...sample, seed: 0n, invert: false },
+    { width: 1, height: 9999, tile: 998, margin: 98, invert: true, seed: 1n },
+  ]) {
+    assert.deepEqual(parseIntroHeader(encodeIntroHeader(header)), header);
+  }
+});
+
+test('intro header parser rejects the same strings as Rust', () => {
+  assert.throws(() => parseIntroHeader('01256013700400014'), /18 or 38 digits, got 17/);
+  assert.throws(() => parseIntroHeader('01256013700400014x'), /only decimal digits/);
+  assert.throws(() => parseIntroHeader('012560137004000146'), /checksum/);
+  assert.throws(() => parseIntroHeader('022560137004000148'), /unknown header version 2/);
+  assert.throws(() => parseIntroHeader('012560137004000246'), /flags/);
+  assert.throws(() => parseIntroHeader('01256013700400011844674407370955161648'), /seed/);
+  assert.throws(() => encodeIntroHeader({ width: 0, height: 1, tile: 40, margin: 0 }), /width/);
+  assert.throws(() => encodeIntroHeader({ width: 1, height: 1, tile: 41, margin: 0 }), /tile/);
 });

@@ -25,6 +25,8 @@
   <label>tile <input name="tile" type="number" value="16"></label>
   <label>margin <input name="margin" type="number" value="4"></label>
   <label>seed <input name="seed" type="text" value="20260916"></label>
+  <label>反色 <input name="invert" type="checkbox"></label>
+  <label>自动读取片头二维码 <input name="auto" type="checkbox" checked></label>
   <button type="submit">Load</button>
 </form>
 <div class="stage">
@@ -33,10 +35,12 @@
 </div>
 <pre id="status"></pre>
 
+<script src="vendor/jsQR.js"></script>
 <script type="module">
-import { createRestorer } from './veilcast.js';
+import { createRestorer, scanIntro } from './veilcast.js';
 
 const form = document.getElementById('params');
+const query = new URLSearchParams(location.search);
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const status = document.getElementById('status');
@@ -59,32 +63,65 @@ function render() {
   schedule();
 }
 
-function load() {
-  const data = new FormData(form);
+function applyParams() {
   const params = {
-    width: Number(data.get('width')),
-    height: Number(data.get('height')),
-    tile: Number(data.get('tile')),
-    margin: Number(data.get('margin')),
-    seed: data.get('seed').trim(),
+    width: Number(form.elements.width.value),
+    height: Number(form.elements.height.value),
+    tile: Number(form.elements.tile.value),
+    margin: Number(form.elements.margin.value),
+    seed: form.elements.seed.value,
+    invert: form.elements.invert.checked,
   };
   try {
     restorer?.destroy();
     restorer = createRestorer(gl, params);
   } catch (error) {
     status.textContent = String(error);
-    return;
+    return false;
   }
   canvas.width = params.width;
   canvas.height = params.height;
   // Display both at the same on-screen height so seams are easy to compare.
   video.style.height = canvas.style.height = `min(80vh, ${params.height}px)`;
+  const { uploadWidth, uploadHeight } = restorer.geometry;
+  status.textContent = `plan: ${params.width}x${params.height}, tile ${params.tile}, margin ${params.margin}, upload ${uploadWidth}x${uploadHeight}`;
+  return true;
+}
 
+// jsQR reads RGBA pixels; scanIntro hands it a downscaled frame.
+const decodeQr = (image) => globalThis.jsQR?.(image.data, image.width, image.height)?.data ?? null;
+let scanAbort = null;
+
+async function readIntro() {
+  scanAbort?.abort();
+  scanAbort = new AbortController();
+  status.textContent += '\nintro: scanning the first second for a QR header…';
+  const header = await scanIntro(video, { decode: decodeQr, signal: scanAbort.signal });
+  if (!header) {
+    status.textContent += '\nintro: no header found; keeping the form values';
+    return;
+  }
+  form.elements.width.value = header.width;
+  form.elements.height.value = header.height;
+  form.elements.tile.value = header.tile;
+  form.elements.margin.value = header.margin;
+  form.elements.invert.checked = header.invert;
+  if (header.seed !== null) form.elements.seed.value = String(header.seed);
+  applyParams();
+  status.textContent += `\nintro: header read at t=${video.currentTime.toFixed(2)}s → ${header.width}x${header.height}, tile ${header.tile}, margin ${header.margin}, invert ${header.invert}, seed ${header.seed === null ? '(not in code)' : 'in code'}`;
+  // The intro carries no picture; jump past it.
+  if (video.currentTime < 1) video.currentTime = 1;
+}
+
+function load() {
+  if (!applyParams()) return;
+  const data = new FormData(form);
   const file = data.get('file');
   video.src = file && file.size ? URL.createObjectURL(file) : data.get('url');
   video.play().catch(() => {});
-  const { uploadWidth, uploadHeight } = restorer.geometry;
-  status.textContent = `plan: ${params.width}x${params.height}, tile ${params.tile}, margin ${params.margin}, upload ${uploadWidth}x${uploadHeight}`;
+  if (form.elements.auto.checked && !query.has('t')) {
+    video.addEventListener('loadeddata', () => { readIntro(); }, { once: true });
+  }
 }
 
 video.addEventListener('loadedmetadata', () => {
@@ -105,7 +142,8 @@ form.addEventListener('submit', (event) => {
 
 // Query parameters prefill the form (e.g. ?tile=40&margin=4&t=3); `t` seeks
 // to that time and pauses, which makes headless screenshots reproducible.
-const query = new URLSearchParams(location.search);
+form.elements.invert.checked = ['1', 'true'].includes(query.get('invert'));
+if (query.has('auto')) form.elements.auto.checked = ['1', 'true'].includes(query.get('auto'));
 for (const name of ['url', 'width', 'height', 'tile', 'margin', 'seed']) {
   if (query.has(name)) form.elements[name].value = query.get(name);
 }
