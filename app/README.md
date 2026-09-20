@@ -14,12 +14,16 @@ npm run tauri build  # 打包安装程序
 
 在仓库根目录 `cargo build -p veilcast-app` / `cargo clippy --workspace` 也能编译壳。
 
+仅生成可独立运行的程序、不创建安装包：先在 `app/` 执行 `npm run build`，再在仓库根目录执行
+`cargo build --release -p veilcast-app --features tauri/custom-protocol`。
+`custom-protocol` 用于内嵌已构建的前端，避免依赖 Vite 开发服务器。
+
 开发端口是 5173/5174 而不是 Tauri 模板默认的 1420：Windows 的 Hyper-V 会保留 1331–1430 这一段，
 `netsh interface ipv4 show excludedportrange protocol=tcp` 可以查看。
 
 ## 功能
 
-拖入或选择一个视频 → 调 tile / margin / seed → 选输出目录（留空放在视频旁边）→ 加密或解密。
+拖入或选择一个视频 → 调 tile / margin / seed / 反色 → 选输出目录（留空放在视频旁边）→ 加密或解密。
 默认 tile 40、margin 0：上传尺寸等于原尺寸，平台按原档位处理，观众看到完整分辨率；代价是 tile 边缘有淡淡接缝。
 每一步都有反馈：探测到的分辨率、帧率、时长；参数是否合法及打乱后的上传尺寸；逐帧进度；
 完成后输入和输出各一张中间帧的快照，方便对比不同参数的效果。
@@ -27,12 +31,20 @@ npm run tauri build  # 打包安装程序
 - **任意尺寸都能处理**：宽高不是 tile 的整数倍时，打乱前把右边和下边补到整数倍（复制边缘像素，不是黑边），
   解密后裁回原尺寸。1920×1078 + tile 40 → 补 2 行按 1920×1080 处理。核心库本身仍要求整除，补边只在应用层。
 - 加密输出命名 `<原名>.veilcast-t<tile>m<margin>.mp4`，音轨原样复制，并在 mp4 的 comment 元数据里写入
-  `veilcast/1 width= height= tile= margin= source=WxH`（width/height 是补齐后的工作尺寸，source 是原尺寸，不含 seed）。
-  再把这个文件拖回来，程序会自动认出并填好几何参数。
+  `veilcast/1 width= height= tile= margin= source=WxH invert=0/1`（width/height 是补齐后的工作尺寸，source 是原尺寸，不含 seed）。
+  开启反色时文件名增加 `-inv` 后缀，避免与相同参数的非反色输出混淆。
+  再把这个文件拖回来，程序会自动认出并填好几何参数和反色状态；旧文件没有 invert 字段时默认关闭。
+- **片头二维码**（默认开）：加密时在最前面加 1 秒白底二维码（H 级纠错，占短边 60%），内容是核心库的 `IntroHeader`
+  纯数字串——原始宽高、tile、margin、反色，勾选"把 seed 也写进二维码"后还包含数值化的 seed。
+  音轨相应延后 1 秒（重编码为 AAC）。解密时自动跳过片头并把音轨裁回，输出时长与原片一致。
+  探测文件时元数据缺失就从片头帧读码（`rqrr`），所以从平台下载回来的文件也能自动填参数；
+  实测元数据抹掉并转码到 360p / 400 kbps 后仍可读。
 - 解密输出命名 `<原名>.restored.mp4`。输入若被平台缩放过，会先按计划的上传尺寸缩回再还原。
 - seed 可以是数字或任意文字，规则见核心库 `seed_from_text`。
 - 启动时可通过第一个命令行参数或 `VEILCAST_OPEN` 环境变量直接打开一个视频。
 - 参数保存在 localStorage，下次打开沿用。
+- **反色默认关闭**，还原方必须与加密方一致。启用时先统一为有限范围 YUV，再在 Rust 中原地反色；输出标记为有限范围。
+  首版面向 SDR；检测到 PQ/HLG 标记的 HDR 输入时提示先转 SDR。超范围样本会裁剪，不承诺有损编码后的逐字节还原。
 
 ffmpeg 的查找顺序：`VEILCAST_FFMPEG_DIR` → 可执行文件旁边 → 开发仓库的 `tools/ffmpeg` → PATH。
 打包时的 sidecar 配置还没做。
@@ -41,14 +53,16 @@ ffmpeg 的查找顺序：`VEILCAST_FFMPEG_DIR` → 可执行文件旁边 → 开
 
 - `src/App.tsx` — 状态与流程
 - `src/components/DropZone.tsx` — Tauri 原生拖放 + 文件对话框
-- `src/components/PlanPanel.tsx` — 尺寸 / tile / margin / seed 与上传尺寸预览
+- `src/components/PlanPanel.tsx` — 尺寸 / tile / margin / seed / 反色与上传尺寸预览
 - `src/components/JobPanel.tsx` — 输出目录、加密 / 解密按钮、进度、结果
 - `src/components/Snapshots.tsx` — 输入 / 输出快照
 - `src/components/ui.tsx` — 共用的 Linaria 基础组件
 - `src/ipc.ts` — Tauri 命令的类型化封装
 - `src-tauri/src/lib.rs` — 命令：`plan_preview`、`initial_file`、`probe_video`、`snapshot`、`run_job`（进度走 `Channel`）
 - `src-tauri/src/ffmpeg.rs` — ffmpeg 子进程：探测、截帧、解码 → 核心库 → 编码的管道
+- `src-tauri/src/intro.rs` — 片头二维码的渲染（`qrcode`）与读取（`rqrr`）
 - `src-tauri/tests/pipeline.rs` — 用真实 ffmpeg 跑一遍加密 → 解密；找不到 ffmpeg 或样例视频时跳过
+- `src-tauri/tests/invert_pipeline.rs` — 自动合成有限/全范围源片，验证反色、元数据、往返还原及关闭反色的差异
 
 ## Linaria 注意事项
 

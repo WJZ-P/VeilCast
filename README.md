@@ -14,11 +14,26 @@
 - **种子排列**：`seeded_permutation(tile_count, seed)`，splitmix64 + Fisher-Yates，
   两端各自生成，排列本身不传输；`seed_from_text` 把用户输入的数字或文字变成种子（FNV-1a 64）。
   `viewer/veilcast.js` 有逐位一致的 JS 实现。
+- **片头协议**：`IntroHeader` 把宽高、tile、margin、反色和可选 seed 编成一串定长纯数字（18 或 38 位，
+  末两位是 mod 97 校验），供桌面端渲染成 1 秒二维码片头、浏览器端扫码后自动配置。布局见 `src/header.rs`，
+  `viewer/veilcast.js` 的 `encodeIntroHeader` / `parseIntroHeader` 逐位一致。
 - 同一计划复用于多帧，逐帧阶段零堆分配；调用方持有独立的输入、输出缓冲区。
 
-暂不涉及：密钥派生（种子如何来）、参数持久化、编解码、音频、Tauri 壳、油猴脚本本体、并行与 SIMD。
+核心库不承担编解码和参数持久化；这些由 `app/` 桌面端和 `userscript/` 浏览器集成负责。
+暂不涉及：密码学密钥派生、音频扰乱、并行与 SIMD。
 
 **分块重排是可逆扰乱，不是密码学加密。** 持有种子和参数的任何人都能还原。
+
+## 可选反色
+
+桌面端与油猴均支持 `invert`，默认 `false`；加密和还原时需要使用同一开关值。
+桌面端启用时先由 ffmpeg 把输入统一为有限范围 `yuv420p`，再由 Rust 的
+`invert_yuv420_limited` 原地执行 `Y'=251-Y`、`U'=256-U`、`V'=256-V`。
+浏览器在既有还原 shader 中执行 RGB 的 `1-color`，不增加一次独立绘制。
+
+标称范围为 Y=16..235、UV=16..240，超范围样本先裁剪；两次反色仅对标称范围内的样本精确可逆。
+范围转换及视频有损编码仍可能引入误差，初版面向 SDR；检测到 PQ/HLG 标记的 HDR 输入时提示先转 SDR。
+文件 comment 元数据保存 `invert=0/1`，旧文件缺少此字段时按关闭处理。音轨不参与反色。
 
 ## 最小用法
 
@@ -98,6 +113,15 @@ psnr/ssim 的参考就此被改掉；Matroska 把 1/30 s 舍入到毫秒，按�
 
 `viewer/index.html` 是开发用测试页，`node viewer/serve.mjs` 起本地服务后打开 `http://127.0.0.1:8765/`，
 可加载 `target/experiment/` 里的转码结果；`?url=&tile=&margin=&t=` 参数可直接定位。
+
+## B 站油猴插件
+
+`userscript/veilcast.user.js` 是可直接安装的单文件脚本，仅匹配 `https://www.bilibili.com/video/*`。
+通过 `.bpx-player-primary-area video` 定位播放器，在原视频层叠加 WebGL2 还原画面，保留原播放器控制。
+默认 `seed="20260916"`、`tile=40`、`margin=0`；`tail` 作为 `tile` 的兼容别名。
+默认值与 Tauri 共用 `app/src/default-settings.json`，构建脚本内联 `viewer/veilcast.js`，不加载远程依赖。
+
+安装、参数、限制和测试步骤见 [userscript/README.md](userscript/README.md)。
 
 ## 本地验证
 
