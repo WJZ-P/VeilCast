@@ -1,0 +1,12 @@
+{
+  "width": 720,
+  "height": 1280,
+  "tile": 40,
+  "margin": 0,
+  "seed": "20260916",
+  "invert": false,
+  "outputDir": "",
+  "intro": true,
+  "seedInIntro": false,
+  "autoIntro": true
+}

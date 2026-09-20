@@ -8,7 +8,12 @@ use std::process::{Child, ChildStderr, Command, Stdio};
 use std::thread;
 
 use serde::{Deserialize, Serialize};
-use veilcast_core::{Yuv420Layout, Yuv420Plan, seed_from_text, seeded_permutation};
+use veilcast_core::{
+    IntroHeader, Yuv420Layout, Yuv420Plan, invert_yuv420_limited, seed_from_text,
+    seeded_permutation,
+};
+
+use crate::intro;
 
 /// Tag written into scrambled files so restore can prefill the geometry.
 /// The seed is deliberately not included.
@@ -110,6 +115,25 @@ pub struct PlanHint {
     pub height: usize,
     pub tile: usize,
     pub margin: usize,
+    pub invert: bool,
+    /// Length of the QR intro at the start of the file, 0 when there is none.
+    pub intro_ms: u32,
+    /// Numeric seed carried by the intro QR code, as a decimal string.
+    pub seed: Option<String>,
+}
+
+impl From<IntroHeader> for PlanHint {
+    fn from(header: IntroHeader) -> Self {
+        Self {
+            width: header.width,
+            height: header.height,
+            tile: header.tile,
+            margin: header.margin,
+            invert: header.invert,
+            intro_ms: (intro::INTRO_SECONDS * 1000.0) as u32,
+            seed: header.seed.map(|seed| seed.to_string()),
+        }
+    }
 }
 
 /// The frame size the plan runs on: the source padded up to a multiple of the
@@ -187,7 +211,9 @@ pub fn probe(tools: &Tools, path: &str) -> Result<VideoInfo, String> {
     let frames = text(&video["nb_frames"])
         .and_then(|n| n.parse::<u64>().ok())
         .unwrap_or_else(|| (duration * fps).round() as u64);
-    let hint = text(&json["format"]["tags"]["comment"]).and_then(|c| parse_hint(&c));
+    let hint = text(&json["format"]["tags"]["comment"])
+        .and_then(|c| parse_hint(&c))
+        .or_else(|| read_intro(tools, path).map(PlanHint::from));
 
     Ok(VideoInfo {
         path: path.to_string(),
@@ -223,6 +249,9 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
         height: 0,
         tile: 0,
         margin: 0,
+        invert: false,
+        intro_ms: 0,
+        seed: None,
     };
     let mut source = None;
     for pair in rest.split_whitespace() {
@@ -238,6 +267,14 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
             "height" => hint.height = value,
             "tile" => hint.tile = value,
             "margin" => hint.margin = value,
+            "intro" => hint.intro_ms = u32::try_from(value).ok()?,
+            "invert" => {
+                hint.invert = match value {
+                    0 => false,
+                    1 => true,
+                    _ => return None,
+                };
+            }
             _ => {}
         }
     }
@@ -247,6 +284,54 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
         hint.height = height;
     }
     (hint.width > 0 && hint.height > 0 && hint.tile > 0).then_some(hint)
+}
+
+/// Decodes one frame from the middle of the intro window as greyscale and
+/// looks for the header QR code in it. `None` when there is no readable code.
+pub fn read_intro(tools: &Tools, path: &str) -> Option<IntroHeader> {
+    let seconds = intro::INTRO_SECONDS / 2.0;
+    let output = command(&tools.ffmpeg)
+        .args(["-v", "error", "-ss", &format!("{seconds:.3}"), "-i", path])
+        .args([
+            "-frames:v",
+            "1",
+            "-vf",
+            r"scale=min(iw\,960):-2",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "gray",
+            "-",
+        ])
+        .output()
+        .ok()?;
+    if !output.status.success() || output.stdout.is_empty() {
+        return None;
+    }
+    // The scale filter keeps the aspect ratio, so recover the size from the byte count.
+    let probe_dims = command(&tools.ffprobe)
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height",
+            "-of",
+            "csv=p=0",
+        ])
+        .arg(path)
+        .output()
+        .ok()?;
+    let dims = String::from_utf8_lossy(&probe_dims.stdout);
+    let (w, h) = dims.trim().split_once(',')?;
+    let (src_w, src_h): (usize, usize) = (w.parse().ok()?, h.parse().ok()?);
+    let width = src_w.min(960);
+    let height = output.stdout.len() / width.max(1);
+    if height == 0 || (src_h as f64 / src_w as f64 - height as f64 / width as f64).abs() > 0.05 {
+        return None;
+    }
+    intro::read_frame(width, height, &output.stdout)
 }
 
 /// One frame of `path` at `seconds`, as PNG bytes scaled to at most 480px tall.
@@ -295,6 +380,21 @@ pub struct JobParams {
     pub margin: usize,
     /// Text seed, see `veilcast_core::seed_from_text`.
     pub seed: String,
+    /// Omitted by older clients: preserve the pre-inversion pipeline.
+    #[serde(default)]
+    pub invert: bool,
+    /// Scramble: prepend the one-second QR intro. Restore: the input starts
+    /// with such an intro, which is skipped.
+    #[serde(default = "default_true")]
+    pub intro: bool,
+    /// Scramble only: write the numeric seed into the intro QR code, so
+    /// anyone with the viewer can restore without being told the seed.
+    #[serde(default)]
+    pub seed_in_intro: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -307,6 +407,7 @@ pub struct Progress {
 pub struct JobResult {
     pub output: String,
     pub frames: u64,
+    pub intro_frames: u64,
     pub work: WorkSize,
     pub upload_width: usize,
     pub upload_height: usize,
@@ -319,6 +420,14 @@ pub fn run_job(
     mut on_progress: impl FnMut(Progress),
 ) -> Result<JobResult, String> {
     let info = probe(tools, &params.input)?;
+    if params.invert
+        && matches!(
+            info.color.transfer.as_deref(),
+            Some("smpte2084" | "arib-std-b67")
+        )
+    {
+        return Err("反色模式仅支持 SDR；请先将 HDR 视频转换为 SDR。".into());
+    }
     // The plan runs on the padded work size; `params.width/height` is the source size.
     let work = fit(params.width, params.height, params.tile);
     let layout = Yuv420Layout::packed(work.width, work.height).map_err(|e| e.to_string())?;
@@ -334,6 +443,24 @@ pub fn run_job(
     .map_err(|e| e.to_string())?;
     let original = plan.original_layout();
     let scrambled = plan.scrambled_layout();
+    let intro_frames = if params.intro {
+        intro::frame_count(info.fps, intro::INTRO_SECONDS)
+    } else {
+        0
+    };
+    let intro_frame = if params.intro && params.mode == Mode::Scramble {
+        let header = IntroHeader {
+            width: params.width,
+            height: params.height,
+            tile: params.tile,
+            margin: params.margin,
+            invert: params.invert,
+            seed: params.seed_in_intro.then(|| seed_from_text(&params.seed)),
+        };
+        Some(intro::render_frame(&header, scrambled)?)
+    } else {
+        None
+    };
 
     let stem = Path::new(&params.input)
         .file_stem()
@@ -351,7 +478,12 @@ pub fn run_job(
                     info.width, info.height, params.width, params.height
                 ));
             }
-            let name = format!("{stem}.veilcast-t{}m{}.mp4", params.tile, params.margin);
+            let name = format!(
+                "{stem}.veilcast-t{}m{}{}.mp4",
+                params.tile,
+                params.margin,
+                if params.invert { "-inv" } else { "" }
+            );
             let pad = if work.pad_right == 0 && work.pad_bottom == 0 {
                 "null".to_string()
             } else {
@@ -378,6 +510,14 @@ pub fn run_job(
                 crop,
             )
         }
+    };
+    // Normalize BEFORE applying the limited-range complement. This also handles
+    // platform transcodes that changed range; never interpret full-range bytes
+    // as TV-range YUV. Keep the disabled path exactly as before.
+    let decode_filter = if params.invert {
+        format!("{decode_filter},scale=in_range=auto:out_range=tv,format=yuv420p")
+    } else {
+        decode_filter
     };
     // An empty output directory means "next to the input".
     let output_dir = if params.output_dir.trim().is_empty() {
@@ -413,28 +553,30 @@ pub fn run_job(
             &format!("{}x{}", out_layout.width(), out_layout.height()),
         ])
         .args(["-framerate", &info.fps_rational, "-i", "-"])
-        .args([
-            "-i",
-            &params.input,
-            "-map",
-            "0:v",
-            "-map",
-            "1:a?",
-            "-c:a",
-            "copy",
-        ])
+        .args(["-i", &params.input, "-map", "0:v", "-map", "1:a?"])
+        .args(audio_args(params, intro_frames > 0))
         .args(["-vf", &encode_filter])
         .args([
             "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p",
         ])
         .args(info.color.encoder_args())
         .args(["-movflags", "+faststart"]);
+    if params.invert {
+        encoder.args(["-color_range", "tv"]);
+    }
     if params.mode == Mode::Scramble {
         encoder.args([
             "-metadata",
             &format!(
-                "comment={METADATA_PREFIX} width={} height={} tile={} margin={} source={}x{}",
-                work.width, work.height, params.tile, params.margin, params.width, params.height
+                "comment={METADATA_PREFIX} width={} height={} tile={} margin={} source={}x{} invert={} intro={}",
+                work.width,
+                work.height,
+                params.tile,
+                params.margin,
+                params.width,
+                params.height,
+                u8::from(params.invert),
+                if intro_frames > 0 { (intro::INTRO_SECONDS * 1000.0) as u32 } else { 0 }
             ),
         ]);
     }
@@ -460,8 +602,21 @@ pub fn run_job(
     let mut output = vec![0u8; out_layout.buffer_len()];
     let total = info.frames.max(1);
     let mut done = 0u64;
+    let mut skipped = 0u64;
     let pump = (|| -> Result<(), String> {
+        if let Some(frame) = &intro_frame {
+            for _ in 0..intro_frames {
+                frames_out
+                    .write_all(frame)
+                    .map_err(|e| format!("写入编码器失败: {e}"))?;
+            }
+        }
         while read_frame(&mut frames_in, &mut input).map_err(|e| format!("读取帧失败: {e}"))? {
+            // The intro carries no picture; drop it on restore.
+            if params.mode == Mode::Restore && skipped < intro_frames {
+                skipped += 1;
+                continue;
+            }
             let result = match params.mode {
                 Mode::Scramble => plan.scramble(
                     original.split(&input).map_err(|e| e.to_string())?,
@@ -475,6 +630,11 @@ pub fn run_job(
                 ),
             };
             result.map_err(|e| e.to_string())?;
+            // Inversion commutes with tile copying. On restore, doing it after
+            // discarding margins avoids processing pixels that will be thrown away.
+            if params.invert {
+                invert_yuv420_limited(out_layout, &mut output).map_err(|e| e.to_string())?;
+            }
             frames_out
                 .write_all(&output)
                 .map_err(|e| format!("写入编码器失败: {e}"))?;
@@ -497,7 +657,19 @@ pub fn run_job(
     let decoder_errors = decoder_errors.join().unwrap_or_default();
     let encoder_errors = encoder_errors.join().unwrap_or_default();
 
-    pump?;
+    if let Err(error) = pump {
+        // A broken pipe usually means ffmpeg rejected its arguments; its own message is the useful one.
+        let details = [decoder_errors.trim(), encoder_errors.trim()]
+            .into_iter()
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(if details.is_empty() {
+            error
+        } else {
+            format!("{error} ({details})")
+        });
+    }
     if !decoder_status {
         return Err(format!("解码失败: {}", decoder_errors.trim()));
     }
@@ -508,10 +680,26 @@ pub fn run_job(
     Ok(JobResult {
         output: output_path.to_string_lossy().into_owned(),
         frames: done,
+        intro_frames,
         work,
         upload_width: scrambled.width(),
         upload_height: scrambled.height(),
     })
+}
+
+/// Audio is copied untouched unless the intro shifts the timeline: then it is
+/// delayed (scramble) or trimmed (restore) by the intro length and re-encoded.
+fn audio_args(params: &JobParams, intro: bool) -> Vec<String> {
+    let owned = |items: &[&str]| items.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    if !intro {
+        return owned(&["-c:a", "copy"]);
+    }
+    let ms = (intro::INTRO_SECONDS * 1000.0) as u32;
+    let filter = match params.mode {
+        Mode::Scramble => format!("adelay={ms}:all=1"),
+        Mode::Restore => format!("atrim=start={},asetpts=PTS-STARTPTS", intro::INTRO_SECONDS),
+    };
+    owned(&["-af", &filter, "-c:a", "aac", "-b:a", "192k"])
 }
 
 fn drain_stderr(stderr: Option<ChildStderr>) -> thread::JoinHandle<String> {
@@ -545,4 +733,41 @@ fn read_frame(reader: &mut impl Read, frame: &mut [u8]) -> std::io::Result<bool>
         filled += n;
     }
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{JobParams, parse_hint};
+
+    #[test]
+    fn inversion_hints_are_optional_and_strictly_boolean() {
+        let legacy = "veilcast/1 width=80 height=48 tile=16 margin=4 source=78x46";
+        let hint = parse_hint(legacy).unwrap();
+        assert!(!hint.invert);
+        assert_eq!((hint.width, hint.height), (78, 46));
+        assert!(parse_hint(&format!("{legacy} invert=1")).unwrap().invert);
+        assert!(!parse_hint(&format!("{legacy} invert=0")).unwrap().invert);
+        assert!(parse_hint(&format!("{legacy} invert=2")).is_none());
+    }
+
+    #[test]
+    fn legacy_job_requests_default_inversion_to_off() {
+        let mut value = serde_json::json!({
+            "input": "test.mp4", "outputDir": "", "mode": "scramble",
+            "width": 80, "height": 48, "tile": 16, "margin": 4, "seed": "42"
+        });
+        assert!(
+            !serde_json::from_value::<JobParams>(value.clone())
+                .unwrap()
+                .invert
+        );
+        value["invert"] = true.into();
+        assert!(
+            serde_json::from_value::<JobParams>(value.clone())
+                .unwrap()
+                .invert
+        );
+        value["invert"] = "false".into();
+        assert!(serde_json::from_value::<JobParams>(value).is_err());
+    }
 }

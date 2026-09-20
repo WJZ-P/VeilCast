@@ -7,6 +7,7 @@ import { PlanPanel, type PlanSettings } from "./components/PlanPanel";
 import { type Snapshot, Snapshots } from "./components/Snapshots";
 import { Note } from "./components/ui";
 import { type Mode, type VideoInfo, initialFile, probeVideo, runJob, snapshotUrl } from "./ipc";
+import defaultSettings from "./default-settings.json";
 
 const Shell = styled.main`
   display: flex;
@@ -32,14 +33,7 @@ const Title = styled.h1`
 `;
 
 const SETTINGS_KEY = "veilcast.settings";
-const DEFAULT_SETTINGS: PlanSettings & { outputDir: string } = {
-  width: 720,
-  height: 1280,
-  tile: 40,
-  margin: 0,
-  seed: "20260916",
-  outputDir: "",
-};
+const DEFAULT_SETTINGS: PlanSettings & { outputDir: string } = defaultSettings;
 
 function loadSettings(): typeof DEFAULT_SETTINGS {
   try {
@@ -90,7 +84,15 @@ function App() {
           ...current,
           width: hint ? hint.width : probed.width,
           height: hint ? hint.height : probed.height,
-          ...(hint ? { tile: hint.tile, margin: hint.margin } : {}),
+          ...(hint
+            ? {
+                tile: hint.tile,
+                margin: hint.margin,
+                invert: hint.invert ?? false,
+                intro: hint.intro_ms > 0,
+                ...(hint.seed ? { seed: hint.seed } : {}),
+              }
+            : {}),
         }));
         setSizeFromFile(true);
         const url = await snapshotUrl(path, probed.duration / 2);
@@ -122,6 +124,9 @@ function App() {
           tile: settings.tile,
           margin: settings.margin,
           seed: settings.seed,
+          invert: settings.invert,
+          intro: settings.intro,
+          seedInIntro: settings.intro && settings.seedInIntro,
         },
         (progress) => setJob((current) => ({ ...current, progress })),
       );
@@ -130,7 +135,7 @@ function App() {
       const url = await snapshotUrl(result.output, seconds);
       showSnapshots([
         ...snapshots.slice(0, 1),
-        { url, caption: `${mode === "scramble" ? "加密输出" : "解密输出"} tile ${settings.tile} margin ${settings.margin}` },
+        { url, caption: `${mode === "scramble" ? "加密输出" : "解密输出"} tile ${settings.tile} margin ${settings.margin} · 反色${settings.invert ? "开" : "关"}` },
       ]);
     } catch (reason) {
       setJob((current) => ({ ...current, running: false, error: String(reason) }));
@@ -142,7 +147,7 @@ function App() {
     : probeError
       ? "读取失败"
       : info
-        ? `${info.width}×${info.height} · ${info.fps.toFixed(2)} fps · ${info.duration.toFixed(1)} s · ${info.codec}${info.has_audio ? " · 有音轨" : ""}${info.hint ? " · 已识别为加密文件" : ""}`
+        ? `${info.width}×${info.height} · ${info.fps.toFixed(2)} fps · ${info.duration.toFixed(1)} s · ${info.codec}${info.has_audio ? " · 有音轨" : ""}${info.hint ? (info.hint.intro_ms > 0 ? " · 已识别为加密文件（片头二维码）" : " · 已识别为加密文件") : ""}`
         : "读取中…";
 
   return (

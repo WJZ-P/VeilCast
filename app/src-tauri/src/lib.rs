@@ -3,6 +3,7 @@
 //! the work.
 
 pub mod ffmpeg;
+pub mod intro;
 
 use serde::Serialize;
 use tauri::ipc::{Channel, Response};

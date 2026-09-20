@@ -31,6 +31,11 @@ export interface PlanHint {
   height: number;
   tile: number;
   margin: number;
+  invert: boolean;
+  /** Length of the QR intro at the start of the file; 0 when there is none. */
+  intro_ms: number;
+  /** Numeric seed carried by the intro QR code, as a decimal string. */
+  seed: string | null;
 }
 
 export interface VideoInfo {
@@ -52,6 +57,11 @@ export interface JobParams extends PlanParams {
   outputDir: string;
   mode: Mode;
   seed: string;
+  invert: boolean;
+  /** Scramble: prepend the one-second QR intro. Restore: skip the intro of the input. */
+  intro: boolean;
+  /** Scramble only: put the numeric seed into the intro QR code. */
+  seedInIntro: boolean;
 }
 
 export interface Progress {
@@ -62,6 +72,7 @@ export interface Progress {
 export interface JobResult {
   output: string;
   frames: number;
+  intro_frames: number;
   work: WorkSize;
   upload_width: number;
   upload_height: number;

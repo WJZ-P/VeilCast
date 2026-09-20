@@ -9,6 +9,9 @@ export interface PlanSettings {
   tile: number;
   margin: number;
   seed: string;
+  invert: boolean;
+  intro: boolean;
+  seedInIntro: boolean;
 }
 
 interface Props {
@@ -80,6 +83,31 @@ export function PlanPanel({ settings, onChange, sizeFromFile }: Props) {
           />
         </Field>
       </Row>
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={settings.invert}
+          onChange={(e) => onChange({ ...settings, invert: e.currentTarget.checked })}
+        />
+        反色（加密与还原两端需保持一致）
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={settings.intro}
+          onChange={(e) => onChange({ ...settings, intro: e.currentTarget.checked })}
+        />
+        片头二维码（1 秒，写入尺寸、tile、margin、反色；解密时跳过）
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, opacity: settings.intro ? 1 : 0.5 }}>
+        <input
+          type="checkbox"
+          checked={settings.seedInIntro}
+          disabled={!settings.intro}
+          onChange={(e) => onChange({ ...settings, seedInIntro: e.currentTarget.checked })}
+        />
+        把 seed 也写进二维码（任何人装了脚本都能观看）
+      </label>
       <Note tone={error ? "error" : undefined}>
         {error ? error : preview ? describe(preview) : "…"}
       </Note>

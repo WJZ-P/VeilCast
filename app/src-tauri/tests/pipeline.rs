@@ -74,6 +74,9 @@ fn padded_sources_scramble_to_the_work_size_and_restore_to_the_source_size() {
         tile: 40,
         margin: 0,
         seed: "pad".into(),
+        invert: false,
+        intro: false,
+        seed_in_intro: false,
     };
     let scrambled = run_job(&tools, &params(&odd, Mode::Scramble), |_| {}).unwrap();
     assert_eq!(scrambled.work, fit(720, 1274, 40));
@@ -127,6 +130,9 @@ fn scramble_then_restore_round_trips_through_ffmpeg() {
         tile: 16,
         margin: 4,
         seed: "veilcast".into(),
+        invert: false,
+        intro: false,
+        seed_in_intro: false,
     };
 
     let mut progress = Vec::new();
@@ -168,4 +174,154 @@ fn scramble_then_restore_round_trips_through_ffmpeg() {
     wrong.width = 1440;
     let error = run_job(&tools, &wrong, |_| {}).unwrap_err();
     assert!(error.contains("720×1280"), "{error}");
+}
+
+#[test]
+fn intro_qr_survives_metadata_loss_and_a_low_resolution_transcode() {
+    let Ok(tools) = Tools::locate() else {
+        eprintln!("skipped: ffmpeg not found");
+        return;
+    };
+    if !Path::new(SAMPLE).is_file() {
+        eprintln!("skipped: sample clip not found at {SAMPLE}");
+        return;
+    }
+    let out_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("pipeline-intro");
+    std::fs::create_dir_all(&out_dir).unwrap();
+    let out_dir_str = out_dir.to_string_lossy().into_owned();
+    let info = probe(&tools, SAMPLE).unwrap();
+
+    let params = |input: &str, mode, seed_in_intro| JobParams {
+        input: input.to_string(),
+        output_dir: out_dir_str.clone(),
+        mode,
+        width: 720,
+        height: 1280,
+        tile: 40,
+        margin: 0,
+        seed: "veilcast".into(),
+        invert: false,
+        intro: true,
+        seed_in_intro,
+    };
+
+    // Scramble with a one-second intro carrying the seed.
+    let scrambled = run_job(&tools, &params(SAMPLE, Mode::Scramble, true), |_| {}).unwrap();
+    assert_eq!(scrambled.intro_frames, 30);
+    assert_eq!(scrambled.frames, info.frames);
+    let scrambled_info = probe(&tools, &scrambled.output).unwrap();
+    assert_eq!(scrambled_info.frames, info.frames + 30);
+    assert!(
+        scrambled_info.has_audio,
+        "delayed audio must be re-encoded, not dropped"
+    );
+    assert!((scrambled_info.duration - info.duration - 1.0).abs() < 0.15);
+    let hint = scrambled_info.hint.expect("metadata hint");
+    assert_eq!(
+        (
+            hint.width,
+            hint.height,
+            hint.tile,
+            hint.margin,
+            hint.intro_ms
+        ),
+        (720, 1280, 40, 0, 1000)
+    );
+
+    // Strip the container metadata, as a platform would: the QR intro is now the only source.
+    let stripped = out_dir.join("stripped.mp4");
+    assert!(
+        std::process::Command::new(tools_ffmpeg())
+            .args([
+                "-v",
+                "error",
+                "-y",
+                "-i",
+                &scrambled.output,
+                "-map_metadata",
+                "-1",
+                "-c",
+                "copy"
+            ])
+            .arg(&stripped)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let stripped = stripped.to_string_lossy().into_owned();
+    let hint = probe(&tools, &stripped)
+        .unwrap()
+        .hint
+        .expect("hint from the QR intro");
+    assert_eq!(
+        (
+            hint.width,
+            hint.height,
+            hint.tile,
+            hint.margin,
+            hint.invert,
+            hint.intro_ms
+        ),
+        (720, 1280, 40, 0, false, 1000)
+    );
+    assert_eq!(
+        hint.seed.as_deref(),
+        Some("9859592623650262946"),
+        "seed_from_text(\"veilcast\")"
+    );
+
+    // Restore from the stripped file: the intro is skipped and the picture returns to 720×1280.
+    let restored = run_job(&tools, &params(&stripped, Mode::Restore, false), |_| {}).unwrap();
+    assert_eq!(restored.frames, info.frames);
+    let restored_info = probe(&tools, &restored.output).unwrap();
+    assert_eq!(
+        (
+            restored_info.width,
+            restored_info.height,
+            restored_info.frames
+        ),
+        (720, 1280, info.frames)
+    );
+    assert!((restored_info.duration - info.duration).abs() < 0.15);
+
+    // A platform-style transcode to 360p at a low bitrate must still leave the QR readable.
+    let low = out_dir.join("low.mp4");
+    assert!(
+        std::process::Command::new(tools_ffmpeg())
+            .args([
+                "-v",
+                "error",
+                "-y",
+                "-i",
+                &stripped,
+                "-vf",
+                "scale=360:640",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "medium",
+                "-b:v",
+                "400k",
+                "-maxrate",
+                "600k",
+                "-bufsize",
+                "800k",
+                "-pix_fmt",
+                "yuv420p",
+                "-an"
+            ])
+            .arg(&low)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let hint = probe(&tools, &low.to_string_lossy())
+        .unwrap()
+        .hint
+        .expect("QR readable after 360p transcode");
+    assert_eq!((hint.width, hint.height, hint.tile), (720, 1280, 40));
+    assert_eq!(hint.seed.as_deref(), Some("9859592623650262946"));
+
+    // Files without an intro are untouched: the original clip yields no hint.
+    assert!(info.hint.is_none());
 }
