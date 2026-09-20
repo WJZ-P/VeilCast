@@ -40,6 +40,11 @@ fn seeds_are_deterministic_and_distinct() {
 fn text_seeds_use_numbers_verbatim_and_fnv1a_otherwise() {
     assert_eq!(seed_from_text("20260916"), 20260916);
     assert_eq!(seed_from_text("007"), 7);
+    assert_eq!(seed_from_text("+007"), 7);
+    assert_eq!(seed_from_text("+18446744073709551615"), u64::MAX);
+    for text in ["1\n", "1\r", " 1", "1 ", "+", "+1\n"] {
+        assert_ne!(seed_from_text(text), 1);
+    }
     assert_eq!(seed_from_text("18446744073709551615"), u64::MAX);
     // Standard FNV-1a 64 vectors.
     assert_eq!(seed_from_text(""), 0xcbf2_9ce4_8422_2325);

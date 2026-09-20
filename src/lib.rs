@@ -13,12 +13,16 @@
 
 mod error;
 mod frame;
+mod header;
+mod invert;
 mod permutation;
 mod shuffle;
 mod yuv;
 
 pub use error::Error;
 pub use frame::{FrameLayout, PixelFormat};
+pub use header::{HEADER_VERSION, HeaderError, IntroHeader};
+pub use invert::invert_yuv420_limited;
 pub use permutation::{seed_from_text, seeded_permutation};
 pub use shuffle::ShufflePlan;
 pub use yuv::{Yuv420Layout, Yuv420Plan};

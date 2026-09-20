@@ -6,13 +6,15 @@
 //! scrambled frames are larger than the originals; the caller must size the
 //! downstream ffmpeg accordingly.
 //!
-//! Usage: raw_pipe <scramble|restore|identity> <width> <height> <tile> <margin> <seed> <rgb24|yuv420p>
+//! Usage: raw_pipe <scramble|restore|identity> <width> <height> <tile> <margin> <seed> <rgb24|yuv420p> [--invert]
+//! --invert requires nominal-range yuv420p; callers handle range normalization.
 
 use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::process::ExitCode;
 
 use veilcast_core::{
-    Error, FrameLayout, PixelFormat, ShufflePlan, Yuv420Layout, Yuv420Plan, seeded_permutation,
+    Error, FrameLayout, PixelFormat, ShufflePlan, Yuv420Layout, Yuv420Plan, invert_yuv420_limited,
+    seeded_permutation,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,13 +38,20 @@ struct Args {
     margin: usize,
     seed: u64,
     format: Format,
+    invert: bool,
 }
 
-const USAGE: &str = "usage: raw_pipe <scramble|restore|identity> <width> <height> <tile> <margin> <seed> <rgb24|yuv420p>";
+const USAGE: &str = "usage: raw_pipe <scramble|restore|identity> <width> <height> <tile> <margin> <seed> <rgb24|yuv420p> [--invert]";
 
 fn parse_args() -> Result<Args, String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let [mode, width, height, tile, margin, seed, format] = args.as_slice() else {
+    let invert = args.last().is_some_and(|arg| arg == "--invert");
+    let positional = if invert {
+        &args[..args.len() - 1]
+    } else {
+        &args
+    };
+    let [mode, width, height, tile, margin, seed, format] = positional else {
         return Err(USAGE.into());
     };
     let mode = match mode.as_str() {
@@ -56,6 +65,9 @@ fn parse_args() -> Result<Args, String> {
         "yuv420p" => Format::Yuv420p,
         other => return Err(format!("unknown pixel format {other:?}")),
     };
+    if invert && format != Format::Yuv420p {
+        return Err("--invert expects limited-range yuv420p".into());
+    }
     let number = |name: &str, value: &str| {
         value
             .parse::<usize>()
@@ -71,6 +83,7 @@ fn parse_args() -> Result<Args, String> {
             .parse::<u64>()
             .map_err(|e| format!("invalid seed {seed:?}: {e}"))?,
         format,
+        invert,
     })
 }
 
@@ -179,6 +192,16 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let mut frames = 0usize;
     while read_frame(&mut reader, &mut input)? {
         plan.apply(args.mode, &input, &mut output)?;
+        if let Plan::Planar(plan) = &plan {
+            if args.invert {
+                let layout = if args.mode == Mode::Restore {
+                    plan.original_layout()
+                } else {
+                    plan.scrambled_layout()
+                };
+                invert_yuv420_limited(layout, &mut output)?;
+            }
+        }
         writer.write_all(&output)?;
         frames += 1;
     }
