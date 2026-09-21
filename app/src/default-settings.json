@@ -8,5 +8,6 @@
   "outputDir": "",
   "intro": true,
   "seedInIntro": false,
+  "gpu": true,
   "autoIntro": true
 }

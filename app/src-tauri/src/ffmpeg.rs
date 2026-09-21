@@ -5,6 +5,7 @@
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, Command, Stdio};
+use std::sync::OnceLock;
 use std::thread;
 
 use serde::{Deserialize, Serialize};
@@ -105,6 +106,101 @@ impl ColorTags {
         }
         args
     }
+}
+
+/// A hardware H.264 encoder ffmpeg can drive on this machine. The bundled
+/// build lists all three whatever the hardware, so availability is settled by
+/// test-encoding a frame, see [`hardware_encoder`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HwEncoder {
+    Nvenc,
+    Amf,
+    Qsv,
+}
+
+impl HwEncoder {
+    /// Detection order: with both present, a discrete NVIDIA card beats an AMD iGPU.
+    const ALL: [Self; 3] = [Self::Nvenc, Self::Amf, Self::Qsv];
+
+    pub fn codec(self) -> &'static str {
+        match self {
+            Self::Nvenc => "h264_nvenc",
+            Self::Amf => "h264_amf",
+            Self::Qsv => "h264_qsv",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Nvenc => "NVIDIA NVENC",
+            Self::Amf => "AMD AMF",
+            Self::Qsv => "Intel Quick Sync",
+        }
+    }
+
+    /// Constant-quality settings matched to libx264 `medium` crf 16 on
+    /// scrambled 2560×1376 content (10 s, VMAF against the source):
+    /// x264 98.91 at 28.1 MB; NVENC p4 cq 19 98.81 at 25.2 MB and 3.5× the
+    /// throughput; AMF cqp 17/19 on a Ryzen iGPU 98.10 at 27.7 MB. The QSV
+    /// flags are ffmpeg's ICQ mode at a similar level and are unmeasured.
+    fn args(self) -> &'static [&'static str] {
+        match self {
+            Self::Nvenc => &["-preset", "p4", "-rc", "vbr", "-cq", "19", "-b:v", "0"],
+            Self::Amf => &[
+                "-quality", "quality", "-rc", "cqp", "-qp_i", "17", "-qp_p", "19",
+            ],
+            Self::Qsv => &["-preset", "medium", "-global_quality", "19"],
+        }
+    }
+}
+
+/// The hardware encoder jobs use when asked to, or `None` for libx264.
+/// Detected once per process: every candidate has to encode a frame with the
+/// exact flags jobs use, because a listed encoder still fails without its
+/// driver or GPU.
+pub fn hardware_encoder(tools: &Tools) -> Option<HwEncoder> {
+    static DETECTED: OnceLock<Option<HwEncoder>> = OnceLock::new();
+    *DETECTED.get_or_init(|| {
+        HwEncoder::ALL.into_iter().find(|encoder| {
+            command(&tools.ffmpeg)
+                .args([
+                    "-v",
+                    "error",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=c=gray:s=256x256:r=30",
+                ])
+                .args([
+                    "-frames:v",
+                    "1",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-c:v",
+                    encoder.codec(),
+                ])
+                .args(encoder.args())
+                .args(["-f", "null", "-"])
+                .stdin(Stdio::null())
+                .output()
+                .is_ok_and(|output| output.status.success())
+        })
+    })
+}
+
+/// `-c:v` and its quality flags: the hardware encoder when one is given,
+/// otherwise libx264.
+fn video_codec_args(hw: Option<HwEncoder>) -> Vec<&'static str> {
+    let mut args = vec!["-c:v"];
+    match hw {
+        Some(encoder) => {
+            args.push(encoder.codec());
+            args.extend(encoder.args());
+        }
+        None => args.extend(["libx264", "-preset", "medium", "-crf", "16"]),
+    }
+    args
 }
 
 /// Geometry recovered from a scrambled file's metadata tag; `width`/`height`
@@ -391,6 +487,10 @@ pub struct JobParams {
     /// anyone with the viewer can restore without being told the seed.
     #[serde(default)]
     pub seed_in_intro: bool,
+    /// Encode with the machine's hardware encoder (see [`hardware_encoder`]);
+    /// falls back to libx264 when none initialises.
+    #[serde(default)]
+    pub gpu: bool,
 }
 
 fn default_true() -> bool {
@@ -411,6 +511,8 @@ pub struct JobResult {
     pub work: WorkSize,
     pub upload_width: usize,
     pub upload_height: usize,
+    /// ffmpeg encoder name actually used, e.g. `libx264` or `h264_nvenc`.
+    pub encoder: String,
 }
 
 /// Runs one scramble or restore job to completion, reporting progress as frames go through.
@@ -544,6 +646,12 @@ pub fn run_job(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
+    let hw = if params.gpu {
+        hardware_encoder(tools)
+    } else {
+        None
+    };
+    let codec = hw.map_or("libx264", HwEncoder::codec);
     let mut encoder = command(&tools.ffmpeg);
     encoder
         .args(["-v", "error", "-nostats"])
@@ -556,9 +664,8 @@ pub fn run_job(
         .args(["-i", &params.input, "-map", "0:v", "-map", "1:a?"])
         .args(audio_args(params, intro_frames > 0))
         .args(["-vf", &encode_filter])
-        .args([
-            "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p",
-        ])
+        .args(video_codec_args(hw))
+        .args(["-pix_fmt", "yuv420p"])
         .args(info.color.encoder_args())
         .args(["-movflags", "+faststart"]);
     if params.invert {
@@ -684,6 +791,7 @@ pub fn run_job(
         work,
         upload_width: scrambled.width(),
         upload_height: scrambled.height(),
+        encoder: codec.to_string(),
     })
 }
 

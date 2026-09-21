@@ -102,6 +102,7 @@ fn full_and_limited_range_inputs_round_trip_with_inversion() {
             invert: true,
             intro: false,
             seed_in_intro: false,
+            gpu: false,
         };
         let reference = rgb(&params.input);
         let scrambled = run_job(&tools, &params, |_| {}).unwrap();

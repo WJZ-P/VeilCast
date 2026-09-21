@@ -62,6 +62,8 @@ export interface JobParams extends PlanParams {
   intro: boolean;
   /** Scramble only: put the numeric seed into the intro QR code. */
   seedInIntro: boolean;
+  /** Encode with the machine's hardware encoder if one works; otherwise libx264. */
+  gpu: boolean;
 }
 
 export interface Progress {
@@ -76,6 +78,14 @@ export interface JobResult {
   work: WorkSize;
   upload_width: number;
   upload_height: number;
+  /** ffmpeg encoder name actually used, e.g. "libx264" or "h264_nvenc". */
+  encoder: string;
+}
+
+/** The hardware encoder `gpu` jobs will use on this machine. */
+export interface EncoderInfo {
+  codec: string;
+  label: string;
 }
 
 /** Rejects with the core crate's error message when the parameters are invalid. */
@@ -86,6 +96,11 @@ export function planPreview(params: PlanParams): Promise<PlanPreview> {
 /** A file passed on the command line or via VEILCAST_OPEN, if any. */
 export function initialFile(): Promise<string | null> {
   return invoke<string | null>("initial_file");
+}
+
+/** Detected once per process by test-encoding a frame; null means jobs use libx264. */
+export function hardwareEncoder(): Promise<EncoderInfo | null> {
+  return invoke<EncoderInfo | null>("hardware_encoder");
 }
 
 export function probeVideo(path: string): Promise<VideoInfo> {

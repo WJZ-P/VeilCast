@@ -3,7 +3,9 @@
 
 use std::path::Path;
 
-use veilcast_app_lib::ffmpeg::{JobParams, Mode, Tools, WorkSize, fit, probe, run_job};
+use veilcast_app_lib::ffmpeg::{
+    JobParams, Mode, Tools, WorkSize, fit, hardware_encoder, probe, run_job,
+};
 
 const SAMPLE: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -77,6 +79,7 @@ fn padded_sources_scramble_to_the_work_size_and_restore_to_the_source_size() {
         invert: false,
         intro: false,
         seed_in_intro: false,
+        gpu: false,
     };
     let scrambled = run_job(&tools, &params(&odd, Mode::Scramble), |_| {}).unwrap();
     assert_eq!(scrambled.work, fit(720, 1274, 40));
@@ -133,6 +136,7 @@ fn scramble_then_restore_round_trips_through_ffmpeg() {
         invert: false,
         intro: false,
         seed_in_intro: false,
+        gpu: false,
     };
 
     let mut progress = Vec::new();
@@ -203,6 +207,7 @@ fn intro_qr_survives_metadata_loss_and_a_low_resolution_transcode() {
         invert: false,
         intro: true,
         seed_in_intro,
+        gpu: false,
     };
 
     // Scramble with a one-second intro carrying the seed.
@@ -324,4 +329,74 @@ fn intro_qr_survives_metadata_loss_and_a_low_resolution_transcode() {
 
     // Files without an intro are untouched: the original clip yields no hint.
     assert!(info.hint.is_none());
+}
+
+/// With `gpu` on, the job reports the detected hardware encoder and still
+/// round-trips; without one it must quietly use libx264.
+#[test]
+fn gpu_jobs_use_the_detected_hardware_encoder_or_fall_back_to_x264() {
+    let Ok(tools) = Tools::locate() else {
+        eprintln!("skipped: ffmpeg not found");
+        return;
+    };
+    if !Path::new(SAMPLE).is_file() {
+        eprintln!("skipped: sample clip not found at {SAMPLE}");
+        return;
+    }
+    let out_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("pipeline-gpu");
+    std::fs::create_dir_all(&out_dir).unwrap();
+    let out_dir_str = out_dir.to_string_lossy().into_owned();
+    let info = probe(&tools, SAMPLE).unwrap();
+    let expected = hardware_encoder(&tools).map_or("libx264", |encoder| encoder.codec());
+    assert_eq!(
+        hardware_encoder(&tools),
+        hardware_encoder(&tools),
+        "detection is cached"
+    );
+    eprintln!("hardware encoder: {expected}");
+
+    let params = |input: &str, mode, gpu| JobParams {
+        input: input.to_string(),
+        output_dir: out_dir_str.clone(),
+        mode,
+        width: 720,
+        height: 1280,
+        tile: 40,
+        margin: 0,
+        seed: "veilcast".into(),
+        invert: false,
+        intro: true,
+        seed_in_intro: false,
+        gpu,
+    };
+
+    let scrambled = run_job(&tools, &params(SAMPLE, Mode::Scramble, true), |_| {}).unwrap();
+    assert_eq!(scrambled.encoder, expected);
+    assert_eq!(scrambled.frames, info.frames);
+    let scrambled_info = probe(&tools, &scrambled.output).unwrap();
+    assert_eq!(
+        scrambled_info.codec, "h264",
+        "every encoder must produce H.264"
+    );
+    assert_eq!((scrambled_info.width, scrambled_info.height), (720, 1280));
+    assert!(
+        scrambled_info
+            .hint
+            .is_some_and(|hint| hint.intro_ms == 1000)
+    );
+
+    let restored = run_job(
+        &tools,
+        &params(&scrambled.output, Mode::Restore, true),
+        |_| {},
+    )
+    .unwrap();
+    assert_eq!(restored.encoder, expected);
+    assert_eq!(restored.frames, info.frames);
+    let restored_info = probe(&tools, &restored.output).unwrap();
+    assert_eq!((restored_info.width, restored_info.height), (720, 1280));
+    assert!((restored_info.duration - info.duration).abs() < 0.1);
+
+    let cpu = run_job(&tools, &params(SAMPLE, Mode::Scramble, false), |_| {}).unwrap();
+    assert_eq!(cpu.encoder, "libx264");
 }

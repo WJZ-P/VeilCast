@@ -11,6 +11,26 @@ use veilcast_core::{Yuv420Layout, Yuv420Plan, seeded_permutation};
 
 use ffmpeg::{JobParams, JobResult, Progress, Tools, VideoInfo, WorkSize};
 
+/// The hardware encoder jobs use with "GPU" on, so the UI can name it up front.
+#[derive(Debug, Serialize)]
+struct EncoderInfo {
+    codec: &'static str,
+    label: &'static str,
+}
+
+#[tauri::command]
+async fn hardware_encoder() -> Result<Option<EncoderInfo>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let tools = Tools::locate()?;
+        Ok(ffmpeg::hardware_encoder(&tools).map(|encoder| EncoderInfo {
+            codec: encoder.codec(),
+            label: encoder.label(),
+        }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Geometry the UI shows before scrambling: padding, grid and upload size.
 #[derive(Debug, Serialize)]
 struct PlanPreview {
@@ -101,7 +121,8 @@ pub fn run() {
             initial_file,
             probe_video,
             snapshot,
-            run_job
+            run_job,
+            hardware_encoder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -127,6 +127,7 @@ function App() {
           invert: settings.invert,
           intro: settings.intro,
           seedInIntro: settings.intro && settings.seedInIntro,
+          gpu: settings.gpu,
         },
         (progress) => setJob((current) => ({ ...current, progress })),
       );

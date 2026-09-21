@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { type PlanPreview, planPreview } from "../ipc";
+import { type EncoderInfo, type PlanPreview, hardwareEncoder, planPreview } from "../ipc";
 import { Field, Note, Panel, Row } from "./ui";
 
 export interface PlanSettings {
@@ -12,6 +12,7 @@ export interface PlanSettings {
   invert: boolean;
   intro: boolean;
   seedInIntro: boolean;
+  gpu: boolean;
 }
 
 interface Props {
@@ -34,7 +35,23 @@ function describe(preview: PlanPreview): string {
 export function PlanPanel({ settings, onChange, sizeFromFile }: Props) {
   const [preview, setPreview] = useState<PlanPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // undefined while detecting, null when no hardware encoder initialises.
+  const [encoder, setEncoder] = useState<EncoderInfo | null | undefined>(undefined);
   const { width, height, tile, margin } = settings;
+
+  useEffect(() => {
+    let cancelled = false;
+    hardwareEncoder()
+      .then((result) => {
+        if (!cancelled) setEncoder(result);
+      })
+      .catch(() => {
+        if (!cancelled) setEncoder(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,6 +124,21 @@ export function PlanPanel({ settings, onChange, sizeFromFile }: Props) {
           onChange={(e) => onChange({ ...settings, seedInIntro: e.currentTarget.checked })}
         />
         把 seed 也写进二维码（任何人装了脚本都能观看）
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={settings.gpu}
+          onChange={(e) => onChange({ ...settings, gpu: e.currentTarget.checked })}
+        />
+        尝试用显卡编码（NVENC / AMF / Quick Sync，不可用时自动回退 CPU）
+        <span style={{ color: "#8f8fa3", fontSize: 12 }}>
+          {encoder === undefined
+            ? "检测中…"
+            : encoder
+              ? `检测到 ${encoder.label}（${encoder.codec}）`
+              : "未检测到可用的显卡编码器，将使用 CPU（libx264）"}
+        </span>
       </label>
       <Note tone={error ? "error" : undefined}>
         {error ? error : preview ? describe(preview) : "…"}
