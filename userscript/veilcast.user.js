@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VeilCast Bilibili Restorer
 // @namespace    veilcast.local
-// @version      0.1.2
+// @version      0.1.3
 // @description  使用与桌面端一致的 seed、tile、margin 在播放器上叠加还原画面
 // @match        https://www.bilibili.com/video/*
 // @run-at       document-idle
@@ -10988,7 +10988,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
 
 installUserscript({
   createRestorer, scanIntro, decodeQr, validateSettings, querySettings, descriptionSettings, videoPageKey,
-  defaults: {"width":720,"height":1280,"tile":40,"margin":0,"seed":"20260916","invert":false,"autoIntro":true},
+  defaults: {"width":720,"height":1280,"tile":40,"margin":0,"seed":"20040821","invert":false,"autoIntro":true},
   storage: { get: GM_getValue, set: GM_setValue },
   menu: { register: GM_registerMenuCommand, unregister: GM_unregisterMenuCommand },
 });

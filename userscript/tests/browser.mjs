@@ -55,7 +55,7 @@ try {
   assert(!document.querySelector('.bpx-player-primary-area #veilcast-userscript-ui'), 'no settings UI covering the player');
   assert(!isEnabled() && restored().style.visibility === 'hidden', 'must start disabled');
   assert(!panel().querySelector('[name=invert]').checked, 'legacy defaults keep inversion off');
-  for (const [name, value] of Object.entries({ seed: '20260916', tile: '40', margin: '0', width: '720', height: '1280' })) {
+  for (const [name, value] of Object.entries({ seed: '20040821', tile: '40', margin: '0', width: '720', height: '1280' })) {
     assert(panel().querySelector(`[name=${name}]`).value === value, `default ${name}`);
   }
   pass('延迟插入的 video / 工具栏自动定位；按钮位于分享右侧，默认参数与 Tauri 一致');

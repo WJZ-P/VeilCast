@@ -8,7 +8,7 @@ const defaults = JSON.parse(await readFile(new URL('../../app/src/default-settin
 
 test('defaults come from the same JSON as the Tauri app', async () => {
   const params = validateSettings({}, defaults);
-  assert.deepEqual(params, { width: 720, height: 1280, tile: 40, margin: 0, seed: '20260916', invert: false, autoIntro: true });
+  assert.deepEqual(params, { width: 720, height: 1280, tile: 40, margin: 0, seed: '20040821', invert: false, autoIntro: true });
   const app = await readFile(new URL('../../app/src/App.tsx', import.meta.url), 'utf8');
   assert.match(app, /import defaultSettings from "\.\/default-settings\.json"/);
 });

@@ -5,11 +5,12 @@ import { Script } from 'node:vm';
 
 const root = new URL('./', import.meta.url);
 const defaults = JSON.parse(await readFile(new URL('../app/src/default-settings.json', root), 'utf8'));
+const { version } = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
 const { width, height, tile, margin, seed, invert, autoIntro = true } = defaults;
 const metadata = `// ==UserScript==
 // @name         VeilCast Bilibili Restorer
 // @namespace    veilcast.local
-// @version      0.1.2
+// @version      ${version}
 // @description  使用与桌面端一致的 seed、tile、margin 在播放器上叠加还原画面
 // @match        https://www.bilibili.com/video/*
 // @run-at       document-idle

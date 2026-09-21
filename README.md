@@ -118,7 +118,7 @@ psnr/ssim 的参考就此被改掉；Matroska 把 1/30 s 舍入到毫秒，按�
 
 `userscript/veilcast.user.js` 是可直接安装的单文件脚本，仅匹配 `https://www.bilibili.com/video/*`。
 通过 `.bpx-player-primary-area video` 定位播放器，在原视频层叠加 WebGL2 还原画面，保留原播放器控制。
-默认 `seed="20260916"`、`tile=40`、`margin=0`；`tail` 作为 `tile` 的兼容别名。
+默认 `seed="20040821"`、`tile=40`、`margin=0`；`tail` 作为 `tile` 的兼容别名。
 默认值与 Tauri 共用 `app/src/default-settings.json`，构建脚本内联 `viewer/veilcast.js`，不加载远程依赖。
 
 安装、参数、限制和测试步骤见 [userscript/README.md](userscript/README.md)。
