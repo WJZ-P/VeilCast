@@ -21,3 +21,8 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+# Every frame's tile copies and inversion run in this crate; unoptimised they
+# cap `tauri dev` at ~25 fps for 1440p, so debug builds optimise it alone.
+[profile.dev.package.veilcast-core]
+opt-level = 3
