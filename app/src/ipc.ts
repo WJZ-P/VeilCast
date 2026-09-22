@@ -36,8 +36,8 @@ export interface PlanHint {
   intro_ms: number;
   /** Numeric seed carried by the intro QR code, as a decimal string. */
   seed: string | null;
-  /** Audio block length in ms, 0 = untouched; null when only the QR code was readable. */
-  audio_ms: number | null;
+  /** Audio block length in ms, 0 = untouched. */
+  audio_ms: number;
 }
 
 export interface VideoInfo {

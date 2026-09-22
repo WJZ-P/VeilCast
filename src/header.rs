@@ -18,10 +18,11 @@ pub const HEADER_VERSION: u8 = 1;
 /// | 10     | 3      | tile, even, 2–998                                 |
 /// | 13     | 2      | margin, even, 0–98                                |
 /// | 15     | 1      | flags: bit 0 = invert, other bits must be zero    |
-/// | 16     | 20     | seed as a decimal `u64` (optional)                |
+/// | 16     | 4      | audio block length in ms, 0 = audio untouched     |
+/// | 20     | 20     | seed as a decimal `u64` (optional)                |
 /// | end    | 2      | checksum: all preceding digits as an integer mod 97 |
 ///
-/// Total length is 18 without a seed and 38 with one; the length alone says
+/// Total length is 22 without a seed and 42 with one; the length alone says
 /// which. The seed is the value produced by [`crate::seed_from_text`], never
 /// the text the user typed. Padding is not transmitted: both ends derive it
 /// from the source size and tile. Any layout change bumps the version, and
@@ -33,12 +34,15 @@ pub struct IntroHeader {
     pub tile: usize,
     pub margin: usize,
     pub invert: bool,
+    /// Block length of the audio time reversal, see [`crate::reverse_blocks`];
+    /// 0 when the audio was left alone.
+    pub audio_ms: u32,
     pub seed: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HeaderError {
-    /// Not 18 or 38 characters.
+    /// Not 22 or 42 characters.
     Length(usize),
     NotDigits,
     /// A version this crate does not understand.
@@ -51,7 +55,7 @@ pub enum HeaderError {
 impl fmt::Display for HeaderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Length(actual) => write!(f, "header must be 18 or 38 digits, got {actual}"),
+            Self::Length(actual) => write!(f, "header must be 22 or 42 digits, got {actual}"),
             Self::NotDigits => write!(f, "header must contain only decimal digits"),
             Self::Version(version) => write!(f, "unknown header version {version}"),
             Self::Checksum => write!(f, "header checksum mismatch"),
@@ -62,20 +66,21 @@ impl fmt::Display for HeaderError {
 
 impl std::error::Error for HeaderError {}
 
-const WITHOUT_SEED: usize = 18;
-const WITH_SEED: usize = 38;
+const WITHOUT_SEED: usize = 22;
+const WITH_SEED: usize = 42;
 
 impl IntroHeader {
     /// The digit string for this header, or the field that cannot be represented.
     pub fn encode(&self) -> Result<String, HeaderError> {
         self.validate()?;
         let mut digits = format!(
-            "{HEADER_VERSION:02}{:04}{:04}{:03}{:02}{}",
+            "{HEADER_VERSION:02}{:04}{:04}{:03}{:02}{}{:04}",
             self.width,
             self.height,
             self.tile,
             self.margin,
-            u8::from(self.invert)
+            u8::from(self.invert),
+            self.audio_ms
         );
         if let Some(seed) = self.seed {
             digits.push_str(&format!("{seed:020}"));
@@ -104,7 +109,7 @@ impl IntroHeader {
             return Err(HeaderError::Field("flags"));
         }
         let seed = if text.len() == WITH_SEED {
-            Some(field::<u64>(&text[16..36], "seed")?)
+            Some(field::<u64>(&text[20..40], "seed")?)
         } else {
             None
         };
@@ -114,6 +119,7 @@ impl IntroHeader {
             tile: field(&text[10..13], "tile")?,
             margin: field(&text[13..15], "margin")?,
             invert: flags == 1,
+            audio_ms: field(&text[16..20], "audio")?,
             seed,
         };
         header.validate()?;
@@ -132,6 +138,9 @@ impl IntroHeader {
         }
         if self.margin > 98 || self.margin % 2 != 0 {
             return Err(HeaderError::Field("margin"));
+        }
+        if self.audio_ms > 9999 {
+            return Err(HeaderError::Field("audio"));
         }
         Ok(())
     }

@@ -222,9 +222,8 @@ pub struct PlanHint {
     /// Length of the QR intro at the start of the file, 0 when there is none.
     pub intro_ms: u32,
     /// Audio block length in milliseconds, 0 when the audio was left alone.
-    /// `None` when unknown: header version 1 in the intro QR code has no
-    /// audio field, so only the metadata tag can say.
-    pub audio_ms: Option<u32>,
+    /// Both the metadata tag and the intro QR code carry it.
+    pub audio_ms: u32,
     /// Numeric seed carried by the intro QR code, as a decimal string.
     pub seed: Option<String>,
 }
@@ -238,8 +237,7 @@ impl From<IntroHeader> for PlanHint {
             margin: header.margin,
             invert: header.invert,
             intro_ms: (intro::INTRO_SECONDS * 1000.0) as u32,
-            // Header version 1 has no audio field; a stripped file cannot say.
-            audio_ms: None,
+            audio_ms: header.audio_ms,
             seed: header.seed.map(|seed| seed.to_string()),
         }
     }
@@ -365,8 +363,7 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
         margin: 0,
         invert: false,
         intro_ms: 0,
-        // Tags written before audio support never touched the audio.
-        audio_ms: Some(0),
+        audio_ms: 0,
         seed: None,
     };
     let mut source = None;
@@ -384,7 +381,7 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
             "tile" => hint.tile = value,
             "margin" => hint.margin = value,
             "intro" => hint.intro_ms = u32::try_from(value).ok()?,
-            "audio" => hint.audio_ms = Some(u32::try_from(value).ok()?),
+            "audio" => hint.audio_ms = u32::try_from(value).ok()?,
             "invert" => {
                 hint.invert = match value {
                     0 => false,
@@ -735,6 +732,11 @@ pub fn run_job(
             tile: params.tile,
             margin: params.margin,
             invert: params.invert,
+            audio_ms: if params.audio_ms > 0 && info.has_audio {
+                params.audio_ms
+            } else {
+                0
+            },
             seed: params.seed_in_intro.then(|| seed_from_text(&params.seed)),
         };
         Some(intro::render_frame(&header, scrambled)?)

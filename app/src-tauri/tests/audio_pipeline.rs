@@ -157,8 +157,7 @@ fn reversed_audio_survives_the_full_job() {
         );
         let hint = probe(&tools, &scrambled.output).unwrap().hint.unwrap();
         assert_eq!(
-            hint.audio_ms,
-            Some(audio_ms),
+            hint.audio_ms, audio_ms,
             "the metadata tag records the block length"
         );
         let restored = run_job(&tools, &params(&scrambled.output, Mode::Restore), |_| {}).unwrap();
@@ -171,6 +170,58 @@ fn reversed_audio_survives_the_full_job() {
     let original = pcm(Path::new(SAMPLE));
     let (_, plain) = job("plain", 0);
     let (scrambled, restored) = job("reversed", 250);
+
+    // What survives an upload: no metadata, audio re-encoded by the platform.
+    // The intro QR alone must still say the audio was reversed. The two files
+    // are also the fixtures for userscript/tests/audio.html: B站 serves audio
+    // as a separate fragmented .m4s, which browsers decode without trimming
+    // the AAC priming samples.
+    let dir = scrambled.parent().unwrap();
+    for (name, args) in [
+        (
+            "platform.mp4",
+            &[
+                "-map_metadata",
+                "-1",
+                "-c:v",
+                "copy",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "64k",
+            ][..],
+        ),
+        (
+            "platform.m4s",
+            &[
+                "-map_metadata",
+                "-1",
+                "-vn",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "64k",
+                "-f",
+                "mp4",
+                "-movflags",
+                "+frag_keyframe+empty_moov+default_base_moof",
+                "-frag_duration",
+                "1000000",
+            ][..],
+        ),
+    ] {
+        let status = Command::new(ffmpeg())
+            .args(["-v", "error", "-y", "-i"])
+            .arg(&scrambled)
+            .args(args)
+            .arg(dir.join(name))
+            .status()
+            .unwrap();
+        assert!(status.success(), "{name}");
+    }
+    let uploaded = probe(&tools, &dir.join("platform.mp4").to_string_lossy()).unwrap();
+    let hint = uploaded.hint.expect("the intro QR survives the upload");
+    assert_eq!(hint.audio_ms, 250, "the intro QR carries the block length");
 
     let restored_info = probe(&tools, &restored.to_string_lossy()).unwrap();
     assert_eq!(restored_info.audio_channels, 2);

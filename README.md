@@ -14,7 +14,7 @@
 - **种子排列**：`seeded_permutation(tile_count, seed)`，splitmix64 + Fisher-Yates，
   两端各自生成，排列本身不传输；`seed_from_text` 把用户输入的数字或文字变成种子（FNV-1a 64）。
   `viewer/veilcast.js` 有逐位一致的 JS 实现。
-- **片头协议**：`IntroHeader` 把宽高、tile、margin、反色和可选 seed 编成一串定长纯数字（18 或 38 位，
+- **片头协议**：`IntroHeader` 把宽高、tile、margin、反色、音频块长和可选 seed 编成一串定长纯数字（22 或 42 位，
   末两位是 mod 97 校验），供桌面端渲染成 1 秒二维码片头、浏览器端扫码后自动配置。布局见 `src/header.rs`，
   `viewer/veilcast.js` 的 `encodeIntroHeader` / `parseIntroHeader` 逐位一致。
 - 同一计划复用于多帧，逐帧阶段零堆分配；调用方持有独立的输入、输出缓冲区。

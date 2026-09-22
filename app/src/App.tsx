@@ -91,9 +91,8 @@ function App() {
                 invert: hint.invert ?? false,
                 intro: hint.intro_ms > 0,
                 // null: only the QR code was readable, which cannot say; keep the user's value.
-                ...(hint.audio_ms === null
-                  ? {}
-                  : { audio: hint.audio_ms > 0, ...(hint.audio_ms > 0 ? { audioMs: hint.audio_ms } : {}) }),
+                audio: hint.audio_ms > 0,
+                ...(hint.audio_ms > 0 ? { audioMs: hint.audio_ms } : {}),
                 ...(hint.seed ? { seed: hint.seed } : {}),
               }
             : {}),

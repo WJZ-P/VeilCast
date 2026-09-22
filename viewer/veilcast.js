@@ -81,23 +81,25 @@ function headerChecksum(digits) {
   return String(r).padStart(2, "0");
 }
 
-function validateHeaderFields({ width, height, tile, margin }) {
+function validateHeaderFields({ width, height, tile, margin, audioMs }) {
   if (!Number.isInteger(width) || width < 1 || width > 9999) throw new Error("header field width is out of range");
   if (!Number.isInteger(height) || height < 1 || height > 9999) throw new Error("header field height is out of range");
   if (!Number.isInteger(tile) || tile < 2 || tile > 998 || tile % 2 !== 0) throw new Error("header field tile is out of range");
   if (!Number.isInteger(margin) || margin < 0 || margin > 98 || margin % 2 !== 0) throw new Error("header field margin is out of range");
+  if (!Number.isInteger(audioMs) || audioMs < 0 || audioMs > 9999) throw new Error("header field audio is out of range");
 }
 
 /**
  * Digit string of the intro header, identical to IntroHeader::encode in Rust:
- * version(2) width(4) height(4) tile(3) margin(2) flags(1) [seed(20)] check(2).
- * `seed` is the numeric seed (bigint/number) or null; the text a user typed
- * goes through seedFromText first.
+ * version(2) width(4) height(4) tile(3) margin(2) flags(1) audio(4) [seed(20)] check(2).
+ * `audioMs` is the audio block length (0 = audio untouched). `seed` is the
+ * numeric seed (bigint/number) or null; the text a user typed goes through
+ * seedFromText first.
  */
-export function encodeIntroHeader({ width, height, tile, margin, invert = false, seed = null }) {
-  validateHeaderFields({ width, height, tile, margin });
+export function encodeIntroHeader({ width, height, tile, margin, invert = false, audioMs = 0, seed = null }) {
+  validateHeaderFields({ width, height, tile, margin, audioMs });
   const pad = (value, digits) => String(value).padStart(digits, "0");
-  let digits = pad(HEADER_VERSION, 2) + pad(width, 4) + pad(height, 4) + pad(tile, 3) + pad(margin, 2) + (invert ? "1" : "0");
+  let digits = pad(HEADER_VERSION, 2) + pad(width, 4) + pad(height, 4) + pad(tile, 3) + pad(margin, 2) + (invert ? "1" : "0") + pad(audioMs, 4);
   if (seed !== null && seed !== undefined) {
     const value = BigInt(seed);
     if (value < 0n || value > MASK64) throw new Error("header field seed is out of range");
@@ -109,15 +111,15 @@ export function encodeIntroHeader({ width, height, tile, margin, invert = false,
 /** Parses a digit string produced by encodeIntroHeader / IntroHeader::encode; throws on anything invalid. */
 export function parseIntroHeader(text) {
   if (typeof text !== "string" || !/^[0-9]*$/.test(text)) throw new Error("header must contain only decimal digits");
-  if (text.length !== 18 && text.length !== 38) throw new Error(`header must be 18 or 38 digits, got ${text.length}`);
+  if (text.length !== 22 && text.length !== 42) throw new Error(`header must be 22 or 42 digits, got ${text.length}`);
   const version = Number(text.slice(0, 2));
   if (version !== HEADER_VERSION) throw new Error(`unknown header version ${version}`);
   if (text.slice(-2) !== headerChecksum(text.slice(0, -2))) throw new Error("header checksum mismatch");
   const flags = Number(text[15]);
   if (flags > 1) throw new Error("header field flags is out of range");
   let seed = null;
-  if (text.length === 38) {
-    seed = BigInt(text.slice(16, 36));
+  if (text.length === 42) {
+    seed = BigInt(text.slice(20, 40));
     if (seed > MASK64) throw new Error("header field seed is out of range");
   }
   const header = {
@@ -126,6 +128,7 @@ export function parseIntroHeader(text) {
     tile: Number(text.slice(10, 13)),
     margin: Number(text.slice(13, 15)),
     invert: flags === 1,
+    audioMs: Number(text.slice(16, 20)),
     seed,
   };
   validateHeaderFields(header);

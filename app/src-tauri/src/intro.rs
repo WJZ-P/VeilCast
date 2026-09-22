@@ -93,6 +93,7 @@ mod tests {
             tile: 40,
             margin: 0,
             invert: true,
+            audio_ms: 250,
             seed: Some(0x88d4_4f40_babc_4fa2),
         }
     }

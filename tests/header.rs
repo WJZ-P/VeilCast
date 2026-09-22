@@ -7,6 +7,7 @@ fn sample() -> IntroHeader {
         tile: 40,
         margin: 0,
         invert: true,
+        audio_ms: 0,
         seed: None,
     }
 }
@@ -15,14 +16,28 @@ fn sample() -> IntroHeader {
 fn known_answer_vectors_pin_the_layout() {
     // Any other implementation (e.g. the browser side) must reproduce these.
     assert_eq!(HEADER_VERSION, 1);
-    assert_eq!(sample().encode().unwrap(), "012560137004000145");
+    assert_eq!(sample().encode().unwrap(), "0125601370040001000017");
     let with_seed = IntroHeader {
         seed: Some(0x88d4_4f40_babc_4fa2), // seed_from_text("veilcast")
         ..sample()
     };
     assert_eq!(
         with_seed.encode().unwrap(),
-        "01256013700400010985959262365026294684"
+        "012560137004000100000985959262365026294677"
+    );
+    let with_audio = IntroHeader {
+        audio_ms: 250,
+        ..sample()
+    };
+    assert_eq!(with_audio.encode().unwrap(), "0125601370040001025073");
+    assert_eq!(
+        IntroHeader {
+            seed: with_seed.seed,
+            ..with_audio
+        }
+        .encode()
+        .unwrap(),
+        "012560137004000102500985959262365026294691"
     );
     let portrait = IntroHeader {
         width: 720,
@@ -30,9 +45,10 @@ fn known_answer_vectors_pin_the_layout() {
         tile: 16,
         margin: 4,
         invert: false,
+        audio_ms: 0,
         seed: None,
     };
-    assert_eq!(portrait.encode().unwrap(), "010720128001604088");
+    assert_eq!(portrait.encode().unwrap(), "0107201280016040000016");
 }
 
 #[test]
@@ -54,11 +70,16 @@ fn parse_inverts_encode() {
             tile: 998,
             margin: 98,
             invert: true,
+            audio_ms: 9999,
             seed: Some(1),
+        },
+        IntroHeader {
+            audio_ms: 250,
+            ..sample()
         },
     ] {
         let digits = header.encode().unwrap();
-        assert!(digits.len() == 18 || digits.len() == 38);
+        assert!(digits.len() == 22 || digits.len() == 42);
         assert_eq!(IntroHeader::parse(&digits).unwrap(), header);
     }
 }
@@ -66,30 +87,35 @@ fn parse_inverts_encode() {
 #[test]
 fn rejects_malformed_strings() {
     assert_eq!(
-        IntroHeader::parse("01256013700400014").unwrap_err(),
-        HeaderError::Length(17)
+        IntroHeader::parse("012560137004000100001").unwrap_err(),
+        HeaderError::Length(21)
+    );
+    // The previous 18-digit layout (no audio field) is not accepted.
+    assert_eq!(
+        IntroHeader::parse("012560137004000145").unwrap_err(),
+        HeaderError::Length(18)
     );
     assert_eq!(
-        IntroHeader::parse("01256013700400014x").unwrap_err(),
+        IntroHeader::parse("012560137004000100001x").unwrap_err(),
         HeaderError::NotDigits
     );
     assert_eq!(
-        IntroHeader::parse("012560137004000146").unwrap_err(),
+        IntroHeader::parse("0125601370040001000018").unwrap_err(),
         HeaderError::Checksum
     );
     // Version 02 with a valid checksum for its payload must still be refused.
     assert_eq!(
-        IntroHeader::parse("022560137004000148").unwrap_err(),
+        IntroHeader::parse("0225601370040001000009").unwrap_err(),
         HeaderError::Version(2)
     );
     // Flags 2 (reserved bit) — checksum recomputed for the altered payload.
     assert_eq!(
-        IntroHeader::parse("012560137004000246").unwrap_err(),
+        IntroHeader::parse("0125601370040002000026").unwrap_err(),
         HeaderError::Field("flags")
     );
     // Seed larger than u64::MAX.
     assert_eq!(
-        IntroHeader::parse("01256013700400011844674407370955161648").unwrap_err(),
+        IntroHeader::parse("012560137004000100001844674407370955161641").unwrap_err(),
         HeaderError::Field("seed")
     );
 }
