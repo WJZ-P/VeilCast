@@ -140,8 +140,11 @@ export function parseIntroHeader(text) {
  * Frames are downscaled to `maxWidth` before decoding; QR readers prefer
  * modest resolutions and it keeps the cost to a few milliseconds per frame.
  */
-export function scanIntro(video, { decode, untilSeconds = 1.5, intervalMs = 100, maxWidth = 640, signal } = {}) {
+export function scanIntro(video, { decode, untilSeconds = 1.5, intervalMs = 100, maxWidth = 640, maxMillis = 5000, signal } = {}) {
   if (typeof decode !== "function") throw new Error("scanIntro needs a decode(imageData) function");
+  // A paused playhead inside the intro window never advances past it, so the
+  // poll also needs a wall-clock bound to end on ordinary videos.
+  const startedAt = Date.now();
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d", { willReadFrequently: true });
   return new Promise((resolve, reject) => {
@@ -169,7 +172,9 @@ export function scanIntro(video, { decode, untilSeconds = 1.5, intervalMs = 100,
             }
           }
         }
-        if (video.ended || video.currentTime > untilSeconds) return stop(null);
+        if (video.ended || video.currentTime > untilSeconds || Date.now() - startedAt >= maxMillis) {
+          return stop(null);
+        }
         timer = setTimeout(attempt, intervalMs);
       } catch (error) {
         clearTimeout(timer);

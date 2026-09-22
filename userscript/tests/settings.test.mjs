@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { Script } from 'node:vm';
-import { validateSettings, querySettings, descriptionSettings, videoPageKey } from '../src/settings.js';
+import {
+  validateSettings, querySettings, descriptionSettings, videoPageKey,
+  pageSettings, rememberPageSettings, forgetPageSettings,
+} from '../src/settings.js';
 
 const defaults = JSON.parse(await readFile(new URL('../../app/src/default-settings.json', import.meta.url), 'utf8'));
 
@@ -92,4 +95,40 @@ test('description inversion is optional; explicit invalid values are rejected', 
   assert.equal(descriptionSettings(`${description} 反色: true`).invert, true);
   assert.equal(descriptionSettings(`${description} invert=false`).invert, false);
   assert.throws(() => descriptionSettings(`${description} invert=2`), /invert/);
+});
+
+test('a page remembers only the plan, and the intro source is sticky', () => {
+  const plan = { width: 720, height: 1280, tile: 40, margin: 0, seed: '9859592623650262946', invert: false, autoIntro: true };
+  const key = '/video/BV1xx/?p=1';
+  let pages = rememberPageSettings({}, key, plan, 'intro', { now: 1000 });
+  assert.deepEqual(pageSettings(pages, key), {
+    settings: { width: 720, height: 1280, tile: 40, margin: 0, seed: '9859592623650262946', invert: false },
+    source: 'intro',
+    savedAt: 1000,
+  });
+  // A seed typed by hand for the same video must not demote it to unverified.
+  pages = rememberPageSettings(pages, key, { ...plan, seed: 'typed' }, 'manual', { now: 2000 });
+  assert.deepEqual(pageSettings(pages, key), {
+    settings: { width: 720, height: 1280, tile: 40, margin: 0, seed: 'typed', invert: false },
+    source: 'intro',
+    savedAt: 2000,
+  });
+  assert.equal(pageSettings(forgetPageSettings(pages, key), key), null);
+  assert.deepEqual(rememberPageSettings({}, null, plan, 'intro'), {}, 'a non-video page stores nothing');
+});
+
+test('page memory is bounded and rejects unusable entries', () => {
+  let pages = {};
+  for (let i = 0; i < 60; i++) {
+    pages = rememberPageSettings(pages, `/video/BV${i}/?p=1`, { width: 720, height: 1280, tile: 40, margin: 0, seed: String(i), invert: false }, 'manual', { limit: 50, now: i });
+  }
+  assert.equal(Object.keys(pages).length, 50);
+  assert.equal(pageSettings(pages, '/video/BV9/?p=1'), null, 'oldest entries are evicted');
+  assert.equal(pageSettings(pages, '/video/BV59/?p=1').settings.seed, '59');
+  for (const broken of [null, {}, { '/video/BV1/?p=1': 7 }, { '/video/BV1/?p=1': { settings: {} } }]) {
+    assert.equal(pageSettings(broken, '/video/BV1/?p=1'), null);
+  }
+  assert.equal(pageSettings({ a: { settings: { tile: 40 } } }, null), null);
+  // An unknown source is never trusted as a verified page.
+  assert.equal(pageSettings({ a: { settings: { tile: 40 }, source: 'guess' } }, 'a').source, 'manual');
 });

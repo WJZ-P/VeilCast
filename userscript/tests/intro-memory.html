@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>VeilCast userscript intro rescan and per-video memory</title>
+<style>
+  body { background: #111827; color: #e5e7eb; font: 14px/1.5 system-ui,sans-serif; margin: 24px; }
+  .bpx-player-primary-area { position: relative; width: 360px; height: 640px; background: #000; }
+  .bpx-player-video-area, .bpx-player-video-perch, .bpx-player-video-wrap { position: relative; width: 100%; height: 100%; }
+  video { width: 100%; height: 100%; object-fit: contain; }
+  .video-toolbar-left { display: flex; align-items: center; }
+  .video-toolbar-left-main { display: flex; gap: 24px; }
+  [data-result=pass] { color: #86efac; }
+  [data-result=fail] { color: #fca5a5; }
+  li { margin: 2px 0; }
+</style>
+<h1>中途加入 → 倒回片头 → 记住本视频的参数</h1>
+<p>同一个已抹掉元数据、转码到 360p 的加密文件：从第 3 秒开始播放时不应自动还原；把进度条拖回片头后必须读到二维码、
+   自行启用并记住参数；离开这个视频再回来时，即使播放头早已过了片头，也应直接用记忆里的参数还原。
+   需要先跑 <code>cargo test -p veilcast-app --test pipeline</code> 生成 <code>target/tmp/pipeline-intro/low.mp4</code>。</p>
+<div id="arc_toolbar_report"><div class="video-toolbar-left">
+  <div class="video-toolbar-left-main"><button>点赞</button><button>投币</button><button>收藏</button><button>分享</button></div>
+</div></div>
+<div class="bpx-player-primary-area"><div class="bpx-player-video-area"><div class="bpx-player-video-perch">
+  <div class="bpx-player-video-wrap"><video muted playsinline></video></div>
+</div></div></div>
+<ol id="steps"></ol>
+<p id="summary">测试运行中…</p>
+<script>
+  const saved = new Map([['veilcast.bilibili.settings.v1', { width: 100, height: 100, tile: 2, margin: 0, seed: 'wrong', invert: true, autoIntro: true }]]);
+  window.GM_getValue = (key, fallback) => saved.get(key) ?? fallback;
+  window.GM_setValue = (key, value) => saved.set(key, structuredClone(value));
+  window.GM_registerMenuCommand = () => 1;
+  window.GM_unregisterMenuCommand = () => {};
+  window.veilcastSaved = saved;
+  history.replaceState({}, '', '/video/veilcast-memory-fixture/');
+</script>
+<script src="/userscript/veilcast.user.js"></script>
+<script type="module">
+  const summary = document.getElementById('summary');
+  const steps = document.getElementById('steps');
+  const saved = window.veilcastSaved;
+  const PAGE_A = '/video/veilcast-memory-fixture/';
+  const PAGE_B = '/video/veilcast-other-fixture/';
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ui = () => document.getElementById('veilcast-userscript-ui');
+  const panel = () => ui()?.shadowRoot;
+  const isEnabled = () => ui()?.dataset.enabled === 'true';
+  const pass = (text) => steps.insertAdjacentHTML('beforeend', `<li>${text}</li>`);
+  const values = () => {
+    const form = panel();
+    const read = Object.fromEntries(['width', 'height', 'tile', 'margin', 'seed'].map((n) => [n, form.querySelector(`[name=${n}]`).value]));
+    read.invert = form.querySelector('[name=invert]').checked;
+    return read;
+  };
+  const expected = { width: '720', height: '1280', tile: '40', margin: '0', seed: '9859592623650262946', invert: false };
+  async function until(check, label, timeoutMs = 10000) {
+    for (let waited = 0; waited < timeoutMs; waited += 50) {
+      if (check()) return;
+      await sleep(50);
+    }
+    throw new Error(`timed out waiting for ${label}`);
+  }
+  const assert = (condition, message) => { if (!condition) throw new Error(message); };
+
+  try {
+    const video = document.querySelector('video');
+    await until(() => ui(), 'the panel to mount');
+
+    // 1. Join at 3 s: the header is long gone, so nothing may happen by itself.
+    video.src = '/target/tmp/pipeline-intro/low.mp4#t=3';
+    await until(() => video.readyState >= 2, 'the first frames');
+    if (video.currentTime < 2) {
+      video.currentTime = 3;
+      await until(() => video.readyState >= 2 && !video.seeking, 'the seek to 3 s');
+    }
+    await video.play();
+    await sleep(2000);
+    assert(!isEnabled(), 'restoration must stay off when playback starts past the intro');
+    assert(values().seed === 'wrong', 'parameters must stay untouched when no header was seen');
+    pass(`从 3 秒开始播放：未自动还原，参数保持不变（当前 ${video.currentTime.toFixed(2)}s）`);
+
+    // 2. Rewind into the intro: the scan must run again and apply the header.
+    video.currentTime = 0;
+    await until(isEnabled, 'restoration to switch on after rewinding', 15000);
+    const applied = values();
+    for (const [name, value] of Object.entries(expected)) {
+      assert(applied[name] === value, `${name}: form shows ${applied[name]}, expected ${value}`);
+    }
+    pass(`拖回片头后自动读码并启用还原（在 ${video.currentTime.toFixed(2)}s）`);
+
+    // 3. The plan is remembered for this video, marked as verified by the header.
+    const remembered = saved.get('veilcast.bilibili.pages.v1')?.[`${PAGE_A}?p=1`];
+    assert(remembered, 'the page must be remembered after a header read');
+    assert(remembered.source === 'intro', `source: ${remembered.source}, expected intro`);
+    assert(String(remembered.settings.seed) === expected.seed, `remembered seed: ${remembered.settings.seed}`);
+    assert(remembered.settings.tile === 40 && remembered.settings.invert === false, 'remembered plan mismatch');
+    pass('本视频的参数已按 BVID 记住，并标记为片头验证过');
+
+    // 4. Leave for another video: its own memory is empty, so it stays off.
+    await until(() => video.currentTime > 1.6, 'playback to leave the intro window');
+    history.replaceState({}, '', PAGE_B);
+    await until(() => ui() && !isEnabled(), 'the other video to start with restoration off', 5000);
+    pass('切到另一个视频：不继承上一个视频的状态');
+
+    // 5. Come back: the playhead is past the intro, so only memory can explain this.
+    history.replaceState({}, '', PAGE_A);
+    await until(isEnabled, 'restoration to resume from memory', 5000);
+    assert(video.currentTime > 1.5, 'the header window must already be over on return');
+    const restored = values();
+    for (const [name, value] of Object.entries(expected)) {
+      assert(restored[name] === value, `${name} after return: ${restored[name]}, expected ${value}`);
+    }
+    const canvas = document.querySelector('canvas[data-veilcast-restored]');
+    await until(() => canvas.style.visibility !== 'hidden', 'the restored canvas to become visible');
+    pass(`回到这个视频：在 ${video.currentTime.toFixed(2)}s（已过片头）直接用记忆参数还原`);
+
+    summary.dataset.result = 'pass';
+    summary.textContent = `pass: 5 项检查通过；status: ${panel().getElementById('status')?.textContent ?? ''}`;
+  } catch (error) {
+    summary.dataset.result = 'fail';
+    summary.textContent = `FAIL: ${error.stack ?? error}`;
+  }
+</script>

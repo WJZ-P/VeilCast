@@ -64,6 +64,50 @@ export function descriptionSettings(text) {
   return values;
 }
 
+/** What a remembered page holds: the plan, never the global preferences. */
+const PLAN_FIELDS = ['width', 'height', 'tile', 'margin', 'seed', 'invert'];
+
+/** One page's remembered plan, or null when it is absent or unusable. */
+export function pageSettings(pages, key) {
+  const entry = pages && key && typeof pages === 'object' ? pages[key] : null;
+  if (!entry || typeof entry !== 'object' || !entry.settings || typeof entry.settings !== 'object') return null;
+  const settings = {};
+  for (const name of PLAN_FIELDS) {
+    if (entry.settings[name] !== undefined) settings[name] = entry.settings[name];
+  }
+  if (Object.keys(settings).length === 0) return null;
+  // Only 'intro' means a checksummed header proved this page is a VeilCast upload.
+  return { settings, source: entry.source === 'intro' ? 'intro' : 'manual', savedAt: Number(entry.savedAt) || 0 };
+}
+
+/** Remembers one page's plan, oldest entries evicted first. Returns a new store. */
+export function rememberPageSettings(pages, key, settings, source, { limit = 50, now = Date.now() } = {}) {
+  const store = pages && typeof pages === 'object' ? { ...pages } : {};
+  if (!key) return store;
+  const plan = {};
+  for (const name of PLAN_FIELDS) plan[name] = settings[name];
+  const previous = pageSettings(store, key);
+  store[key] = {
+    settings: plan,
+    // Hand-corrected values (a seed the intro did not carry) keep the page verified.
+    source: source === 'intro' || previous?.source === 'intro' ? 'intro' : 'manual',
+    savedAt: now,
+  };
+  const keys = Object.keys(store);
+  if (keys.length > limit) {
+    keys.sort((a, b) => (pageSettings(store, a)?.savedAt ?? 0) - (pageSettings(store, b)?.savedAt ?? 0));
+    for (const stale of keys.slice(0, keys.length - limit)) delete store[stale];
+  }
+  return store;
+}
+
+/** Drops one page's remembered plan. Returns a new store. */
+export function forgetPageSettings(pages, key) {
+  const store = pages && typeof pages === 'object' ? { ...pages } : {};
+  delete store[key];
+  return store;
+}
+
 /** BVID/path and multi-part index identify a video; quality changes do not. */
 export function videoPageKey(href) {
   const url = new URL(href);

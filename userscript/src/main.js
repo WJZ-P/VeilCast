@@ -1,8 +1,11 @@
 /** Browser integration only. The renderer and desktop defaults are injected by the build. */
-export function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, storage, menu }) {
+export function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, pageSettings, rememberPageSettings, forgetPageSettings, storage, menu }) {
   const SELECTOR = '.bpx-player-primary-area video';
   const TOOLBAR_SELECTOR = '#arc_toolbar_report .video-toolbar-left-main';
   const STORAGE_KEY = 'veilcast.bilibili.settings.v1';
+  // Per-video memory, keyed by BVID and part: what the intro QR said, plus
+  // whatever the viewer corrected by hand on that page.
+  const PAGES_KEY = 'veilcast.bilibili.pages.v1';
   let settings;
   let settingsNotice = '';
   let enabled = false;
@@ -11,17 +14,49 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
   let pageKey = videoPageKey(location.href);
   let disposed = false;
 
+  /** This page's remembered plan, ignored when it no longer validates. */
+  function pageMemory() {
+    let entry;
+    try {
+      entry = pageSettings(storage.get(PAGES_KEY, {}), pageKey);
+    } catch { return null; }
+    if (!entry) return null;
+    try {
+      validateSettings(entry.settings, defaults);
+    } catch { return null; }
+    return entry;
+  }
+  function rememberPage(values, source) {
+    if (!pageKey) return;
+    try {
+      storage.set(PAGES_KEY, rememberPageSettings(storage.get(PAGES_KEY, {}), pageKey, values, source));
+    } catch { /* Memory is a convenience; this session still works without it. */ }
+  }
+  function forgetPage() {
+    if (!pageKey) return;
+    try {
+      storage.set(PAGES_KEY, forgetPageSettings(storage.get(PAGES_KEY, {}), pageKey));
+    } catch { /* As above. */ }
+  }
+  /** Only a page whose intro QR we verified restores by itself. */
+  function autoEnabled() {
+    return Boolean(settings.autoIntro && pageMemory()?.source === 'intro');
+  }
+
   function loadSettings() {
     settingsNotice = '';
+    // This page's memory beats the last-used values; an explicit URL still wins.
+    const remembered = pageMemory()?.settings ?? {};
     try {
       const saved = storage.get(STORAGE_KEY, {});
-      return validateSettings({ ...saved, ...querySettings(location.search) }, defaults);
+      return validateSettings({ ...saved, ...remembered, ...querySettings(location.search) }, defaults);
     } catch (error) {
       settingsNotice = `参数读取失败，已恢复默认值：${error.message}`;
       return validateSettings({}, defaults);
     }
   }
   settings = loadSettings();
+  enabled = autoEnabled();
 
   function mount(video, toolbar) {
     const area = video.closest('.bpx-player-primary-area');
@@ -156,8 +191,9 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
     // switch the restorer on: only our own header parses, so nothing happens
     // on ordinary videos.
     let introScan = null;
+    let introRead = false;
     async function readIntroHeader() {
-      if (dead || !settings.autoIntro || !scanIntro || !decodeQr) return;
+      if (dead || introRead || !settings.autoIntro || !scanIntro || !decodeQr) return;
       if (video.currentTime > 1.5 || video.readyState < 2) return;
       introScan?.abort();
       introScan = new AbortController();
@@ -166,6 +202,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
       try { header = await scanIntro(video, { decode: decodeQr, signal }); }
       catch { return; }
       if (!header || dead) return;
+      introRead = true;
       fill({
         ...settings,
         width: header.width,
@@ -181,9 +218,10 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
         startRenderer();
         updateToggle();
       }
+      rememberPage(settings, 'intro');
       message(header.seed === null
-        ? '已从片头二维码读取尺寸、tile、margin 和反色（片头不含 seed，沿用当前 seed）并启用还原。'
-        : '已从片头二维码读取全部参数（含 seed）并启用还原。');
+        ? '已从片头二维码读取尺寸、tile、margin 和反色（片头不含 seed，沿用当前 seed）并启用还原，参数已记住。'
+        : '已从片头二维码读取全部参数（含 seed）并启用还原，参数已记住。');
     }
     function updateToggle() {
       toggle.textContent = enabled ? '停用还原' : '启用还原';
@@ -235,7 +273,8 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
           if (!hasDrawn) {
             if (gl.getError() !== gl.NO_ERROR) throw new Error('视频纹理上传失败');
             hasDrawn = true;
-            message(`还原中 · ${settings.width}×${settings.height} · 反色${settings.invert ? '开' : '关'} · 视频 ${video.videoWidth}×${video.videoHeight}${settingsNotice ? ` · ${settingsNotice}` : ''}`);
+            const memory = pageMemory()?.source === 'intro' ? ' · 已记住本视频的参数' : '';
+            message(`还原中 · ${settings.width}×${settings.height} · 反色${settings.invert ? '开' : '关'} · 视频 ${video.videoWidth}×${video.videoHeight}${memory}${settingsNotice ? ` · ${settingsNotice}` : ''}`);
           }
           canvas.style.visibility = 'visible';
         } catch (error) { fail(error); return; }
@@ -270,6 +309,8 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
       settingsNotice = '';
       try { storage.set(STORAGE_KEY, settings); }
       catch { settingsNotice = '设置保存失败，本次会话仍有效'; }
+      // A seed the intro could not carry belongs to this video, not to the next one.
+      rememberPage(settings, 'manual');
       if (enabled) startRenderer();
       else message(`参数已应用；还原处于关闭状态。${settingsNotice}`);
       return true;
@@ -314,13 +355,18 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
       settings = validateSettings({}, defaults);
       fill();
       apply();
+      // "Default" also drops this video's memory, so it stops restoring by itself.
+      forgetPage();
+      introRead = false;
     });
     // Do not let the player's shortcuts intercept typing or buttons in the panel.
     for (const name of ['keydown', 'keyup', 'keypress', 'pointerdown', 'click', 'dblclick']) {
       on(ui, name, (event) => event.stopPropagation());
     }
     for (const name of ['play', 'playing', 'loadeddata', 'seeked']) on(video, name, render);
-    on(video, 'loadeddata', () => { readIntroHeader(); });
+    // Seeking back into the first second is a second chance at the header,
+    // which is what happens when a viewer joins late and then rewinds.
+    for (const name of ['loadeddata', 'play', 'seeked']) on(video, name, () => { readIntroHeader(); });
     if (video.readyState >= 2) readIntroHeader();
     for (const name of ['pause', 'ended']) on(video, name, () => { cancelFrame(); render(); });
     for (const name of ['loadstart', 'emptied']) on(video, name, () => {
@@ -385,10 +431,12 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
     const nextKey = videoPageKey(location.href);
     if (nextKey !== pageKey) {
       pageKey = nextKey;
-      enabled = false; // Never silently restore a different BVID or multi-part video.
       active?.dispose();
       active = null;
       settings = loadSettings();
+      // A different BVID or part never inherits the previous video's state; it
+      // restores only on its own verified memory.
+      enabled = autoEnabled();
     }
     if (!pageKey) return;
     const toolbar = document.querySelector(TOOLBAR_SELECTOR);
