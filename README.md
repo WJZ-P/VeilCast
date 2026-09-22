@@ -121,6 +121,7 @@ psnr/ssim 的参考就此被改掉；Matroska 把 1/30 s 舍入到毫秒，按�
 默认 `seed="20040821"`、`tile=40`、`margin=0`；`tail` 作为 `tile` 的兼容别名。
 默认值与 Tauri 共用 `app/src/default-settings.json`，构建脚本内联 `viewer/veilcast.js`，不加载远程依赖。
 读到片头二维码后按 BVID 记住该视频的参数，下次打开（哪怕从中途开始）直接还原；把进度条拖回片头会重新扫码。
+桌面端开了音频加扰时，脚本会下载这个视频的音轨、在信号里找到块栅格、倒回来，并与画面同步播放。
 
 安装、参数、限制和测试步骤见 [userscript/README.md](userscript/README.md)。
 

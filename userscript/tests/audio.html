@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>VeilCast audio restoration check</title>
+<style>
+  body { background: #111827; color: #e5e7eb; font: 14px/1.5 system-ui,sans-serif; margin: 24px; }
+  .bpx-player-primary-area { position: relative; width: 360px; height: 640px; background: #000; }
+  .bpx-player-video-area, .bpx-player-video-perch, .bpx-player-video-wrap { position: relative; width: 100%; height: 100%; }
+  video { width: 100%; height: 100%; object-fit: contain; }
+  .video-toolbar-left { display: flex; align-items: center; }
+  .video-toolbar-left-main { display: flex; gap: 24px; }
+  [data-result=pass] { color: #86efac; }
+  [data-result=fail] { color: #fca5a5; }
+  li { margin: 2px 0; }
+</style>
+<h1>音频分块倒放：浏览器端还原</h1>
+<p>先跑 <code>cargo test -p veilcast-app --test audio_pipeline</code>：它把 250 ms 倒放的加密文件再按 AAC 64k 转一遍，
+   生成 <code>platform.mp4</code>（元数据已抹）和 B 站式的纯音频分片 <code>platform.m4s</code>。
+   第一部分直接检验解码、找栅格、倒回来的结果；第二部分检验油猴脚本读到片头后自动下载、还原并同步播放。</p>
+<div id="arc_toolbar_report"><div class="video-toolbar-left">
+  <div class="video-toolbar-left-main"><button>点赞</button><button>投币</button><button>收藏</button><button>分享</button></div>
+</div></div>
+<div class="bpx-player-primary-area"><div class="bpx-player-video-area"><div class="bpx-player-video-perch">
+  <div class="bpx-player-video-wrap"><video playsinline></video></div>
+</div></div></div>
+<ol id="steps"></ol>
+<p id="summary">测试运行中…</p>
+<script>
+  const saved = new Map([['veilcast.bilibili.settings.v1', { width: 100, height: 100, tile: 2, margin: 0, seed: 'wrong', invert: false, autoIntro: true, audioMs: 0 }]]);
+  window.GM_getValue = (key, fallback) => saved.get(key) ?? fallback;
+  window.GM_setValue = (key, value) => saved.set(key, structuredClone(value));
+  window.GM_registerMenuCommand = () => 1;
+  window.GM_unregisterMenuCommand = () => {};
+  // ?activate: the harness clicks the page first (CDP_CLICK=1), which is what
+  // lets the script silence the page by capture instead of by muting.
+  window.veilcastActivate = new URLSearchParams(location.search).has('activate');
+  history.replaceState({}, '', '/video/veilcast-audio-fixture/');
+</script>
+<script src="/userscript/veilcast.user.js"></script>
+<script type="module">
+  import { findAudioGrid, reverseAudioBlocks } from '/viewer/veilcast.js';
+
+  const FIXTURES = '/target/tmp/audio-job-reversed';
+  const SOURCE = '/target/experiment/d49672a5defc39413b8979e3dfb5f134-yuv420p/source.mp4';
+  const RATE = 48000;
+  const summary = document.getElementById('summary');
+  const steps = document.getElementById('steps');
+  const pass = (text) => steps.insertAdjacentHTML('beforeend', `<li>${text}</li>`);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const assert = (condition, message) => { if (!condition) throw new Error(message); };
+  async function until(check, label, timeoutMs = 15000) {
+    for (let waited = 0; waited < timeoutMs; waited += 50) {
+      if (check()) return;
+      await sleep(50);
+    }
+    throw new Error(`timed out waiting for ${label}`);
+  }
+  async function decode(url) {
+    const bytes = await (await fetch(url)).arrayBuffer();
+    const buffer = await new OfflineAudioContext(1, 1, RATE).decodeAudioData(bytes);
+    return Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i).slice());
+  }
+  /** SNR in dB of `candidate` (from sample `from`) against the source from its start. */
+  function snr(source, candidate, from) {
+    let signal = 0;
+    let error = 0;
+    for (let c = 0; c < source.length; c++) {
+      const n = Math.min(source[c].length, candidate[c].length - from);
+      for (let i = 0; i < n; i++) {
+        const a = source[c][i];
+        const b = candidate[c][from + i];
+        signal += a * a;
+        error += (a - b) * (a - b);
+      }
+    }
+    return 10 * Math.log10(signal / Math.max(error, 1e-12));
+  }
+
+  try {
+    const source = await decode(SOURCE);
+
+    // Part 1: the DSP alone on real AAC 64k data.
+    const report = [];
+    for (const name of ['platform.m4s', 'platform.mp4']) {
+      const channels = await decode(`${FIXTURES}/${name}`);
+      const exposed = snr(source, channels, RATE);
+      const grid = findAudioGrid(channels, { sampleRate: RATE, blockMs: 250, nominalStart: RATE });
+      const naive = channels.map((c) => c.slice());
+      reverseAudioBlocks(naive, { sampleRate: RATE, blockMs: 250, start: RATE });
+      reverseAudioBlocks(channels, { sampleRate: RATE, blockMs: 250, start: grid.start });
+      const aligned = snr(source, channels, grid.start);
+      const unaligned = snr(source, naive, RATE);
+      report.push(`${name}: 偏移 ${grid.offset} 样本，置信度 ${grid.confidence.toFixed(1)}，还原 ${aligned.toFixed(1)} dB（不对齐 ${unaligned.toFixed(1)} dB），上传 ${exposed.toFixed(1)} dB`);
+      assert(grid.confidence > 2, `${name}: grid confidence ${grid.confidence}`);
+      assert(aligned > 10, `${name}: restored SNR ${aligned.toFixed(1)} dB`);
+      assert(exposed < 3, `${name}: upload SNR ${exposed.toFixed(1)} dB`);
+    }
+    pass(`真实 AAC 64k 数据：${report.join('；')}`);
+
+    // Part 2: the userscript reads the intro, fetches, restores and plays.
+    const video = document.querySelector('video');
+    const ui = () => document.getElementById('veilcast-userscript-ui');
+    const panel = () => ui()?.shadowRoot;
+    await until(() => ui(), 'the panel to mount');
+    if (window.veilcastActivate) await until(() => navigator.userActivation.hasBeenActive, 'the harness click');
+    const expectedMode = navigator.userActivation?.hasBeenActive ? 'captured' : 'muted';
+    video.src = `${FIXTURES}/platform.mp4`;
+    await video.play();
+    await until(() => ui().dataset.enabled === 'true', 'the intro to enable restoration');
+    assert(panel().querySelector('[name=audioMs]').value === '250', 'the intro QR sets the audio block length');
+    await until(() => ui().dataset.audio === 'ready' || ui().dataset.audio === 'error', 'the audio to be restored', 30000);
+    assert(ui().dataset.audio === 'ready', `audio state ${ui().dataset.audio}: ${panel().getElementById('audio-status').textContent}`);
+    assert(ui().dataset.audioMode === expectedMode, `silenced by ${ui().dataset.audioMode}, expected ${expectedMode}`);
+    assert(video.muted === (expectedMode === 'muted'), `video.muted is ${video.muted} in ${expectedMode} mode`);
+    const audio = panel().querySelector('audio[data-veilcast-audio]');
+    assert(audio?.src.startsWith('blob:'), 'restored audio plays from a blob');
+    pass(`片头二维码 → 块长 250 ms → 自动下载并还原（原声静音方式：${expectedMode}）：${panel().getElementById('audio-status').textContent}`);
+
+    // The restored track itself, on the media timeline.
+    const restored = await decode(audio.src);
+    const quality = snr(source, restored, RATE);
+    assert(quality > 10, `restored track SNR ${quality.toFixed(1)} dB`);
+    pass(`脚本输出的音轨与原声对比 ${quality.toFixed(1)} dB（已对齐到媒体时间轴）`);
+
+    // Playback follows the video.
+    await until(() => !audio.paused, 'the restored audio to play');
+    const t0 = video.currentTime;
+    await sleep(4000);
+    assert(video.currentTime > t0 + 3, `the video keeps playing (${t0.toFixed(2)} → ${video.currentTime.toFixed(2)})`);
+    const drift = Math.abs(audio.currentTime - video.currentTime);
+    assert(drift < 0.05, `drift ${drift.toFixed(3)} s`);
+    video.pause();
+    await until(() => audio.paused, 'audio to pause with the video');
+    video.currentTime = 4;
+    await until(() => !video.seeking && Math.abs(audio.currentTime - 4) < 0.1, 'audio to follow a seek');
+    await video.play();
+    await until(() => !audio.paused, 'audio to resume');
+    pass(`播放同步：视频正常前进，偏差 ${(drift * 1000).toFixed(0)} ms；暂停、跳转、继续播放都跟随视频`);
+
+    if (expectedMode === 'muted') {
+      // The player shows muted; unmuting there means "let me hear it".
+      audio.muted = true;
+      video.muted = false;
+      await until(() => video.muted && !audio.muted, 'unmute to reach the restored track only');
+      pass('静音模式下在播放器里点取消静音：还原音轨出声，原声仍保持静音');
+    }
+
+    // Turning restoration off hands the sound back to the page.
+    panel().getElementById('toggle').click();
+    await until(() => ui().dataset.enabled === 'false' && ui().dataset.audio === 'off', 'restoration to switch off');
+    assert(!panel().querySelector('audio[data-veilcast-audio]'), 'the restored audio element is gone');
+    assert(!video.muted, 'the page gets its sound back');
+    const resumed = video.currentTime;
+    await sleep(500);
+    assert(video.currentTime > resumed + 0.3, 'the video keeps playing after hand-back');
+    pass('停用还原后移除还原音轨，视频原声交还给页面');
+
+    summary.dataset.result = 'pass';
+    summary.textContent = `pass: ${steps.children.length} 项检查通过`;
+  } catch (error) {
+    summary.dataset.result = 'fail';
+    summary.textContent = `FAIL: ${error.stack ?? error}`;
+  }
+</script>

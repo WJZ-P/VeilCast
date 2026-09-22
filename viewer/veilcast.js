@@ -189,6 +189,112 @@ export function scanIntro(video, { decode, untilSeconds = 1.5, intervalMs = 100,
   });
 }
 
+/** Samples per audio block; the desktop pins audio to 48 kHz, so 48 per ms there. */
+function audioBlockSamples(sampleRate, blockMs) {
+  const block = Math.round((sampleRate * blockMs) / 1000);
+  if (!Number.isSafeInteger(block) || block < 1) throw new Error("audio block must hold at least one sample");
+  return block;
+}
+
+/**
+ * Reverses time inside every whole block of planar audio, in place: the
+ * browser mirror of veilcast_core::reverse_blocks, and like it its own
+ * inverse. Blocks start at sample `start`; samples before it and a trailing
+ * partial block are left alone. `channels` is an array of Float32Array
+ * (AudioBuffer.getChannelData). Returns the number of blocks reversed.
+ */
+export function reverseAudioBlocks(channels, { sampleRate, blockMs, start = 0 }) {
+  const block = audioBlockSamples(sampleRate, blockMs);
+  if (!Number.isSafeInteger(start) || start < 0) throw new Error("audio block start must be a non-negative integer");
+  const length = channels[0]?.length ?? 0;
+  let blocks = 0;
+  for (let at = start; at + block <= length; at += block, blocks++) {
+    for (const data of channels) data.subarray(at, at + block).reverse();
+  }
+  return blocks;
+}
+
+/**
+ * Finds where the reversed blocks really start in a decoded track.
+ *
+ * Containers and codecs shift audio by up to tens of milliseconds — browsers
+ * do not trim AAC priming from fragmented MP4, for one — so the grid cannot
+ * be taken on trust. Reversal leaves a jump between unrelated samples at
+ * every block boundary, and lossy codecs smear that jump symmetrically, so
+ * the true grid is where the summed squared sample-to-sample step over many
+ * boundaries peaks. Candidates cover `searchMs` either side of
+ * `nominalStart`, capped below half a block because the grid repeats every
+ * block. `confidence` is the peak over the mean score: near 1 means there
+ * was nothing to find (silence, or audio that was never reversed).
+ */
+export function findAudioGrid(channels, { sampleRate, blockMs, nominalStart, searchMs = 100, maxBlocks = 400 }) {
+  const block = audioBlockSamples(sampleRate, blockMs);
+  const length = channels[0]?.length ?? 0;
+  const reach = Math.min(Math.round((sampleRate * searchMs) / 1000), Math.floor((block - 1) / 2));
+  let best = nominalStart;
+  let bestScore = -1;
+  let total = 0;
+  let candidates = 0;
+  for (let start = nominalStart - reach; start <= nominalStart + reach; start++) {
+    let score = 0;
+    let at = start;
+    for (let k = 0; k < maxBlocks && at + block <= length; k++, at += block) {
+      if (at < 1) continue;
+      for (const data of channels) {
+        const step = data[at] - data[at - 1];
+        score += step * step;
+      }
+    }
+    total += score;
+    candidates++;
+    if (score > bestScore) {
+      bestScore = score;
+      best = start;
+    }
+  }
+  const mean = total / Math.max(1, candidates);
+  return { start: best, offset: best - nominalStart, confidence: mean > 0 ? bestScore / mean : 0 };
+}
+
+/**
+ * 16-bit PCM WAV of planar float audio. Output sample i is input sample
+ * i + offset (silence where that falls outside the input), which is how a
+ * decoded track that runs early or late is put back on the media timeline.
+ */
+export function encodeWav(channels, sampleRate, { offset = 0 } = {}) {
+  const channelCount = channels.length;
+  const length = channels[0]?.length ?? 0;
+  const frames = Math.max(0, length - offset);
+  const dataBytes = frames * channelCount * 2;
+  const buffer = new ArrayBuffer(44 + dataBytes);
+  const view = new DataView(buffer);
+  const text = (at, value) => { for (let i = 0; i < value.length; i++) view.setUint8(at + i, value.charCodeAt(i)); };
+  text(0, "RIFF");
+  view.setUint32(4, 36 + dataBytes, true);
+  text(8, "WAVE");
+  text(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, channelCount, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * channelCount * 2, true);
+  view.setUint16(32, channelCount * 2, true);
+  view.setUint16(34, 16, true);
+  text(36, "data");
+  view.setUint32(40, dataBytes, true);
+  // Every browser is little-endian, which is what WAV wants.
+  const pcm = new Int16Array(buffer, 44, frames * channelCount);
+  let out = 0;
+  for (let i = 0; i < frames; i++) {
+    const source = i + offset;
+    for (let c = 0; c < channelCount; c++, out++) {
+      const value = source >= 0 && source < length ? Math.max(-1, Math.min(1, channels[c][source])) : 0;
+      pcm[out] = value < 0 ? value * 0x8000 : value * 0x7fff;
+    }
+  }
+  return buffer;
+}
+
 const VERTEX_SHADER = `#version 300 es
 const vec2 corners[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
 out vec2 vUv;

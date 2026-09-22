@@ -1,5 +1,5 @@
 /** Browser integration only. The renderer and desktop defaults are injected by the build. */
-export function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, pageSettings, rememberPageSettings, forgetPageSettings, storage, menu }) {
+export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, pageSettings, rememberPageSettings, forgetPageSettings, storage, menu }) {
   const SELECTOR = '.bpx-player-primary-area video';
   const TOOLBAR_SELECTOR = '#arc_toolbar_report .video-toolbar-left-main';
   const STORAGE_KEY = 'veilcast.bilibili.settings.v1';
@@ -13,6 +13,10 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
   let scanHandle = null;
   let pageKey = videoPageKey(location.href);
   let disposed = false;
+  // Audio files the player fetched; only those requested after the current
+  // video was navigated to can belong to it.
+  const audioUrls = audio?.watchAudioUrls();
+  let navigatedAt = 0;
 
   /** This page's remembered plan, ignored when it no longer validates. */
   function pageMemory() {
@@ -128,11 +132,13 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
           <label>原始高度<input name="height" type="number" min="1" max="16384" step="1" required></label>
         </div>
         <small>填写加密前的尺寸，而非当前播放清晰度；五项参数需与加密端一致。</small>
+        <label>音频块长 ms（0 = 不处理音频）<input name="audioMs" type="number" min="0" max="9999" step="50" required></label>
         <label class="check"><input name="invert" type="checkbox">反色（与加密端保持一致）</label>
         <label class="check"><input name="autoIntro" type="checkbox">自动读取片头二维码并启用还原</label>
         <button id="from-description" type="button">读取简介参数</button>
         <div class="row"><button id="toggle" type="button">启用还原</button><button type="submit">应用参数</button><button id="reset" type="button">默认</button></div>
         <p id="status" role="status" aria-live="polite"></p>
+        <p id="audio-status" role="status" aria-live="polite" hidden></p>
         <small>只处理画面；声音、弹幕和播放控制仍由原播放器负责。</small>
       </form></dialog>`;
     toolbar.after(ui);
@@ -182,7 +188,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
       openButton.setAttribute('aria-expanded', String(dialog.open));
     }
     function fill(values = settings) {
-      for (const name of ['seed', 'tile', 'margin', 'width', 'height']) form.elements.namedItem(name).value = values[name];
+      for (const name of ['seed', 'tile', 'margin', 'width', 'height', 'audioMs']) form.elements.namedItem(name).value = values[name];
       form.elements.namedItem('invert').checked = values.invert;
       form.elements.namedItem('autoIntro').checked = values.autoIntro;
     }
@@ -210,6 +216,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
         tile: header.tile,
         margin: header.margin,
         invert: header.invert,
+        audioMs: header.audioMs,
         seed: header.seed === null ? settings.seed : String(header.seed),
       });
       if (!apply()) return;
@@ -222,6 +229,37 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
       message(header.seed === null
         ? '已从片头二维码读取尺寸、tile、margin 和反色（片头不含 seed，沿用当前 seed）并启用还原，参数已记住。'
         : '已从片头二维码读取全部参数（含 seed）并启用还原，参数已记住。');
+    }
+    const audioStatus = shadow.getElementById('audio-status');
+    let audioRestorer = null;
+    function audioReport(state, text) {
+      ui.dataset.audio = state;
+      audioStatus.textContent = text;
+      audioStatus.hidden = !text;
+      audioStatus.dataset.error = String(state === 'error');
+    }
+    /** Keeps the audio restorer in line with `enabled` and the block length. */
+    function syncAudio() {
+      const wanted = !dead && enabled && settings.audioMs > 0 && Boolean(audio);
+      if (audioRestorer && (!wanted || audioRestorer.blockMs !== settings.audioMs)) {
+        audioRestorer.destroy();
+        audioRestorer = null;
+      }
+      if (!wanted) {
+        audioReport('off', '');
+        delete ui.dataset.audioMode;
+        return;
+      }
+      if (audioRestorer) return;
+      const since = navigatedAt;
+      audioRestorer = audio.createAudioRestorer({
+        video,
+        blockMs: settings.audioMs,
+        host: shadow,
+        locate: (signal) => audio.locateAudio(video, audioUrls, { since, signal }),
+        report: audioReport,
+      });
+      ui.dataset.audioMode = audioRestorer.mode;
     }
     function updateToggle() {
       toggle.textContent = enabled ? '停用还原' : '启用还原';
@@ -245,6 +283,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
       enabled = false;
       stopRenderer();
       updateToggle();
+      syncAudio();
       message(`还原已停止，保留原画面：${error.message ?? error}。请检查参数、WebGL 或视频跨域限制。`, true);
       open();
     }
@@ -295,8 +334,9 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
         syncBox();
         message('等待视频帧…');
         render();
-      } catch (error) { fail(error); }
+      } catch (error) { fail(error); return; }
       updateToggle();
+      syncAudio();
     }
     function apply() {
       if (!form.reportValidity()) return false;
@@ -304,6 +344,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
         const values = Object.fromEntries(new FormData(form));
         values.invert = form.elements.namedItem('invert').checked;
         values.autoIntro = form.elements.namedItem('autoIntro').checked;
+        values.audioMs = form.elements.namedItem('audioMs').value;
         settings = validateSettings(values, defaults);
       } catch (error) { message(error.message, true); return false; }
       settingsNotice = '';
@@ -312,7 +353,10 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
       // A seed the intro could not carry belongs to this video, not to the next one.
       rememberPage(settings, 'manual');
       if (enabled) startRenderer();
-      else message(`参数已应用；还原处于关闭状态。${settingsNotice}`);
+      else {
+        message(`参数已应用；还原处于关闭状态。${settingsNotice}`);
+        syncAudio();
+      }
       return true;
     }
 
@@ -345,6 +389,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
         enabled = false;
         stopRenderer();
         updateToggle();
+        syncAudio();
         message('还原已关闭，显示原画面。');
       } else if (apply()) {
         enabled = true;
@@ -399,6 +444,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
     message(settingsNotice || '还原未启用；请核对 seed、tile、margin 和原始宽高，再点击「启用还原」。', Boolean(settingsNotice));
     if (settingsNotice) open();
     if (enabled) startRenderer();
+    else syncAudio();
 
     return {
       video, wrapper, area, ui, canvas, open,
@@ -413,6 +459,8 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
         dead = true;
         open(false);
         listeners.abort();
+        audioRestorer?.destroy();
+        audioRestorer = null;
         resizeObserver.disconnect();
         stopRenderer();
         gl?.getExtension('WEBGL_lose_context')?.loseContext();
@@ -431,6 +479,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
     const nextKey = videoPageKey(location.href);
     if (nextKey !== pageKey) {
       pageKey = nextKey;
+      navigatedAt = performance.now();
       active?.dispose();
       active = null;
       settings = loadSettings();
@@ -476,6 +525,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, default
     disposed = true;
     lifetime.abort();
     observer.disconnect();
+    audioUrls?.stop();
     clearInterval(timer);
     if (scanHandle !== null) cancelAnimationFrame(scanHandle);
     active?.dispose();

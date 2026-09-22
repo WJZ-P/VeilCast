@@ -1,3 +1,12 @@
+/**
+ * The userscript's defaults from the desktop app's settings file. The desktop
+ * keeps a block length even while its audio switch is off; here 0 means off.
+ */
+export function userscriptDefaults(app) {
+  const { width, height, tile, margin, seed, invert, autoIntro = true, audio = false, audioMs = 0 } = app;
+  return { width, height, tile, margin, seed, invert, autoIntro, audioMs: audio ? audioMs : 0 };
+}
+
 /** Validate desktop-compatible YUV420 parameters. Seed text is never trimmed. */
 export function validateSettings(input, defaults) {
   const settings = {};
@@ -22,6 +31,11 @@ export function validateSettings(input, defaults) {
   settings.seed = seed;
   settings.invert = parseInvert(input.invert ?? defaults.invert ?? false);
   settings.autoIntro = parseInvert(input.autoIntro ?? defaults.autoIntro ?? true);
+  const audioMs = input.audioMs ?? defaults.audioMs ?? 0;
+  settings.audioMs = typeof audioMs === 'string' && audioMs.trim() === '' ? 0 : Number(audioMs);
+  if (!Number.isSafeInteger(settings.audioMs) || settings.audioMs < 0 || settings.audioMs > 9999) {
+    throw new Error('音频块长需要 0–9999 的整数（0 表示不处理音频）');
+  }
   return settings;
 }
 
@@ -65,7 +79,7 @@ export function descriptionSettings(text) {
 }
 
 /** What a remembered page holds: the plan, never the global preferences. */
-const PLAN_FIELDS = ['width', 'height', 'tile', 'margin', 'seed', 'invert'];
+const PLAN_FIELDS = ['width', 'height', 'tile', 'margin', 'seed', 'invert', 'audioMs'];
 
 /** One page's remembered plan, or null when it is absent or unusable. */
 export function pageSettings(pages, key) {

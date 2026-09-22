@@ -4,14 +4,15 @@ import { test } from 'node:test';
 import { Script } from 'node:vm';
 import {
   validateSettings, querySettings, descriptionSettings, videoPageKey,
-  pageSettings, rememberPageSettings, forgetPageSettings,
+  pageSettings, rememberPageSettings, forgetPageSettings, userscriptDefaults,
 } from '../src/settings.js';
+import { pickAudioUrl } from '../src/audio.js';
 
-const defaults = JSON.parse(await readFile(new URL('../../app/src/default-settings.json', import.meta.url), 'utf8'));
+const defaults = userscriptDefaults(JSON.parse(await readFile(new URL('../../app/src/default-settings.json', import.meta.url), 'utf8')));
 
 test('defaults come from the same JSON as the Tauri app', async () => {
   const params = validateSettings({}, defaults);
-  assert.deepEqual(params, { width: 720, height: 1280, tile: 40, margin: 0, seed: '20040821', invert: false, autoIntro: true });
+  assert.deepEqual(params, { width: 720, height: 1280, tile: 40, margin: 0, seed: '20040821', invert: false, autoIntro: true, audioMs: 0 });
   const app = await readFile(new URL('../../app/src/App.tsx', import.meta.url), 'utf8');
   assert.match(app, /import defaultSettings from "\.\/default-settings\.json"/);
 });
@@ -53,7 +54,7 @@ test('page identity changes for a new video or part, not a quality setting', () 
 test('explicit description import matches the supplied video parameters', () => {
   const text = '原始宽2560，高1370 tile 16 margin 4 seed 20260916\n混淆前6M，混淆后60M，解码后19M';
   assert.deepEqual(validateSettings(descriptionSettings(text), defaults), {
-    width: 2560, height: 1370, tile: 16, margin: 4, seed: '20260916', invert: false, autoIntro: true,
+    width: 2560, height: 1370, tile: 16, margin: 4, seed: '20260916', invert: false, autoIntro: true, audioMs: 0,
   });
   assert.equal(descriptionSettings('原始宽度: 720 高度：1280 tail=40 margin=0 seed=+007').seed, '+007');
 });
@@ -72,8 +73,8 @@ test('installable artifact is standalone, scoped and contains current defaults',
   assert.match(bundle, /@match\s+https:\/\/www\.bilibili\.com\/video\/\*/);
   assert.match(bundle, /@noframes/);
   assert.doesNotMatch(bundle, /@require|GM_xmlhttpRequest|unsafeWindow/);
-  const { width, height, tile, margin, seed, invert, autoIntro } = defaults;
-  assert.ok(bundle.includes(`defaults: ${JSON.stringify({ width, height, tile, margin, seed, invert, autoIntro })}`));
+  assert.ok(bundle.includes(`defaults: ${JSON.stringify(defaults)}`));
+  assert.match(bundle, /createAudioRestorer/);
   // The QR decoder is bundled under a local shim, not exposed on the page.
   assert.ok(bundle.includes("const jsQR = (() => {"));
   assert.match(bundle, /scanIntro, decodeQr/);
@@ -131,4 +132,31 @@ test('page memory is bounded and rejects unusable entries', () => {
   assert.equal(pageSettings({ a: { settings: { tile: 40 } } }, null), null);
   // An unknown source is never trusted as a verified page.
   assert.equal(pageSettings({ a: { settings: { tile: 40 }, source: 'guess' } }, 'a').source, 'manual');
+});
+
+test('audio block length: 0 is off, the desktop switch maps onto it', () => {
+  assert.equal(validateSettings({ audioMs: '250' }, defaults).audioMs, 250);
+  assert.equal(validateSettings({ audioMs: '' }, defaults).audioMs, 0);
+  for (const bad of [-1, 10000, 2.5, 'x']) assert.throws(() => validateSettings({ audioMs: bad }, defaults), /音频块长/);
+  const app = { width: 720, height: 1280, tile: 40, margin: 0, seed: 's', invert: false, audio: false, audioMs: 250 };
+  assert.equal(userscriptDefaults(app).audioMs, 0);
+  assert.equal(userscriptDefaults({ ...app, audio: true }).audioMs, 250);
+  // A page remembers its block length with the rest of the plan.
+  const pages = rememberPageSettings({}, '/video/BV1/?p=1', validateSettings({ audioMs: 250 }, defaults), 'intro');
+  assert.equal(pageSettings(pages, '/video/BV1/?p=1').settings.audioMs, 250);
+});
+
+test('the audio track is the latest Bilibili audio request since navigation', () => {
+  const entry = (name, startTime) => ({ name, startTime });
+  const entries = [
+    entry('https://upos-sz-mirrorcos.bilivideo.com/upgcxcode/1/2/111/111-1-30280.m4s?e=old', 100),
+    entry('https://upos-sz-mirrorcos.bilivideo.com/upgcxcode/1/2/111/111-1-30080.m4s?e=video', 150),
+    entry('https://xy1x2x3x4xy.mcdn.bilivideo.cn:4483/upgcxcode/3/4/222/222-1-30232.m4s?e=new', 900),
+    entry('https://s1.hdslb.com/bfs/static/player/main.js', 950),
+  ];
+  assert.match(pickAudioUrl(entries), /222-1-30232\.m4s/);
+  assert.match(pickAudioUrl(entries, { since: 0 }), /e=new/);
+  assert.equal(pickAudioUrl(entries, { since: 1000 }), null, 'nothing fetched since navigating');
+  assert.match(pickAudioUrl(entries.slice(0, 2)), /111-1-30280/, 'video streams never match');
+  assert.equal(pickAudioUrl([entry('https://example.com/a-30280.m4s.bak', 1)]), null);
 });

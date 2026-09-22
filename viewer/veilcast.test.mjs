@@ -4,7 +4,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { encodeIntroHeader, parseIntroHeader, planGeometry, seedFromText, seededPermutation } from './veilcast.js';
+import {
+  encodeIntroHeader, encodeWav, findAudioGrid, parseIntroHeader, planGeometry, reverseAudioBlocks, seedFromText,
+  seededPermutation,
+} from './veilcast.js';
 
 test('known-answer vectors match veilcast_core', () => {
   assert.deepEqual(seededPermutation(16, 1), [2, 11, 10, 6, 7, 13, 14, 0, 12, 5, 15, 9, 3, 8, 4, 1]);
@@ -113,4 +116,74 @@ test('intro header parser rejects the same strings as Rust', () => {
   assert.throws(() => encodeIntroHeader({ width: 1, height: 1, tile: 40, margin: 0, audioMs: 10000 }), /audio/);
   assert.throws(() => encodeIntroHeader({ width: 0, height: 1, tile: 40, margin: 0 }), /width/);
   assert.throws(() => encodeIntroHeader({ width: 1, height: 1, tile: 41, margin: 0 }), /tile/);
+});
+
+test('audio blocks reverse from the start sample and leave the rest alone', () => {
+  const ramp = (n) => Float32Array.from({ length: n }, (_, i) => i);
+  // 1 kHz sample rate so 4 ms is a 4-sample block.
+  const left = ramp(15);
+  const right = ramp(15).map((v) => -v);
+  assert.equal(reverseAudioBlocks([left, right], { sampleRate: 1000, blockMs: 4, start: 2 }), 3);
+  assert.deepEqual([...left], [0, 1, 5, 4, 3, 2, 9, 8, 7, 6, 13, 12, 11, 10, 14]);
+  assert.deepEqual([...right], [...left].map((v) => -v));
+  // Its own inverse.
+  reverseAudioBlocks([left, right], { sampleRate: 1000, blockMs: 4, start: 2 });
+  assert.deepEqual([...left], [...ramp(15)]);
+  assert.equal(reverseAudioBlocks([ramp(3)], { sampleRate: 1000, blockMs: 4 }), 0);
+  assert.throws(() => reverseAudioBlocks([ramp(3)], { sampleRate: 1000, blockMs: 0 }), /at least one sample/);
+  assert.throws(() => reverseAudioBlocks([ramp(3)], { sampleRate: 1000, blockMs: 4, start: -1 }), /non-negative/);
+});
+
+test('the block grid is found where the reversal left its jumps', () => {
+  // Five seconds of band-limited "music" after one second of silence, like
+  // an upload with its intro; the decoder shifted it by 1024 priming samples.
+  const rate = 48000;
+  const priming = 1024;
+  const length = priming + rate * 6;
+  let state = 12345;
+  const random = () => ((state = (state * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const partials = Array.from({ length: 24 }, () => ({ f: 60 + random() * 3000, p: random() * 6.283, a: random() }));
+  const channel = () => {
+    const data = new Float32Array(length);
+    for (let i = priming + rate; i < length; i++) {
+      const t = i / rate;
+      let v = 0;
+      for (const { f, p, a } of partials) v += a * Math.sin(6.283185 * f * t + p) * (0.6 + 0.4 * Math.sin(t * 3 + p));
+      data[i] = v / 12;
+    }
+    return data;
+  };
+  const left = channel();
+  const right = channel();
+  reverseAudioBlocks([left, right], { sampleRate: rate, blockMs: 250, start: priming + rate });
+  // A lossy codec smears each jump over a few samples, symmetrically: the
+  // decoder adds no delay of its own beyond the priming already modelled.
+  for (const data of [left, right]) {
+    const copy = data.slice();
+    for (let i = 1; i < length - 1; i++) data[i] = (copy[i - 1] + 2 * copy[i] + copy[i + 1]) / 4;
+  }
+  const grid = findAudioGrid([left, right], { sampleRate: rate, blockMs: 250, nominalStart: rate });
+  assert.ok(Math.abs(grid.offset - priming) <= 1, `offset ${grid.offset}`);
+  assert.ok(grid.confidence > 3, `confidence ${grid.confidence}`);
+
+  const silent = findAudioGrid([new Float32Array(rate * 3)], { sampleRate: rate, blockMs: 250, nominalStart: rate });
+  assert.equal(silent.confidence, 0, 'silence has no grid to find');
+});
+
+test('WAV output is 16-bit PCM shifted onto the media timeline', () => {
+  const left = Float32Array.from([0.5, -0.5, 1.5, -1.5]);
+  const right = Float32Array.from([0, 0.25, -0.25, 1]);
+  const bytes = encodeWav([left, right], 48000);
+  const view = new DataView(bytes);
+  const text = (at) => String.fromCharCode(...new Uint8Array(bytes, at, 4));
+  assert.equal(text(0), 'RIFF');
+  assert.equal(text(8), 'WAVE');
+  assert.equal(view.getUint16(20, true), 1);
+  assert.equal(view.getUint16(22, true), 2);
+  assert.equal(view.getUint32(24, true), 48000);
+  assert.equal(view.getUint32(40, true), 16);
+  assert.deepEqual([...new Int16Array(bytes, 44)], [16383, 0, -16384, 8191, 32767, -8192, -32768, 32767]);
+  // A track decoded two samples late drops them; one decoded early gains silence.
+  assert.deepEqual([...new Int16Array(encodeWav([left], 8000, { offset: 2 }), 44)], [32767, -32768]);
+  assert.deepEqual([...new Int16Array(encodeWav([left], 8000, { offset: -1 }), 44)], [0, 16383, -16384, 32767, -32768]);
 });

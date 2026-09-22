@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VeilCast Bilibili Restorer
 // @namespace    veilcast.local
-// @version      0.1.5
+// @version      0.1.6
 // @description  使用与桌面端一致的 seed、tile、margin 在播放器上叠加还原画面
 // @match        https://www.bilibili.com/video/*
 // @run-at       document-idle
@@ -10316,6 +10316,112 @@ function scanIntro(video, { decode, untilSeconds = 1.5, intervalMs = 100, maxWid
   });
 }
 
+/** Samples per audio block; the desktop pins audio to 48 kHz, so 48 per ms there. */
+function audioBlockSamples(sampleRate, blockMs) {
+  const block = Math.round((sampleRate * blockMs) / 1000);
+  if (!Number.isSafeInteger(block) || block < 1) throw new Error("audio block must hold at least one sample");
+  return block;
+}
+
+/**
+ * Reverses time inside every whole block of planar audio, in place: the
+ * browser mirror of veilcast_core::reverse_blocks, and like it its own
+ * inverse. Blocks start at sample `start`; samples before it and a trailing
+ * partial block are left alone. `channels` is an array of Float32Array
+ * (AudioBuffer.getChannelData). Returns the number of blocks reversed.
+ */
+function reverseAudioBlocks(channels, { sampleRate, blockMs, start = 0 }) {
+  const block = audioBlockSamples(sampleRate, blockMs);
+  if (!Number.isSafeInteger(start) || start < 0) throw new Error("audio block start must be a non-negative integer");
+  const length = channels[0]?.length ?? 0;
+  let blocks = 0;
+  for (let at = start; at + block <= length; at += block, blocks++) {
+    for (const data of channels) data.subarray(at, at + block).reverse();
+  }
+  return blocks;
+}
+
+/**
+ * Finds where the reversed blocks really start in a decoded track.
+ *
+ * Containers and codecs shift audio by up to tens of milliseconds — browsers
+ * do not trim AAC priming from fragmented MP4, for one — so the grid cannot
+ * be taken on trust. Reversal leaves a jump between unrelated samples at
+ * every block boundary, and lossy codecs smear that jump symmetrically, so
+ * the true grid is where the summed squared sample-to-sample step over many
+ * boundaries peaks. Candidates cover `searchMs` either side of
+ * `nominalStart`, capped below half a block because the grid repeats every
+ * block. `confidence` is the peak over the mean score: near 1 means there
+ * was nothing to find (silence, or audio that was never reversed).
+ */
+function findAudioGrid(channels, { sampleRate, blockMs, nominalStart, searchMs = 100, maxBlocks = 400 }) {
+  const block = audioBlockSamples(sampleRate, blockMs);
+  const length = channels[0]?.length ?? 0;
+  const reach = Math.min(Math.round((sampleRate * searchMs) / 1000), Math.floor((block - 1) / 2));
+  let best = nominalStart;
+  let bestScore = -1;
+  let total = 0;
+  let candidates = 0;
+  for (let start = nominalStart - reach; start <= nominalStart + reach; start++) {
+    let score = 0;
+    let at = start;
+    for (let k = 0; k < maxBlocks && at + block <= length; k++, at += block) {
+      if (at < 1) continue;
+      for (const data of channels) {
+        const step = data[at] - data[at - 1];
+        score += step * step;
+      }
+    }
+    total += score;
+    candidates++;
+    if (score > bestScore) {
+      bestScore = score;
+      best = start;
+    }
+  }
+  const mean = total / Math.max(1, candidates);
+  return { start: best, offset: best - nominalStart, confidence: mean > 0 ? bestScore / mean : 0 };
+}
+
+/**
+ * 16-bit PCM WAV of planar float audio. Output sample i is input sample
+ * i + offset (silence where that falls outside the input), which is how a
+ * decoded track that runs early or late is put back on the media timeline.
+ */
+function encodeWav(channels, sampleRate, { offset = 0 } = {}) {
+  const channelCount = channels.length;
+  const length = channels[0]?.length ?? 0;
+  const frames = Math.max(0, length - offset);
+  const dataBytes = frames * channelCount * 2;
+  const buffer = new ArrayBuffer(44 + dataBytes);
+  const view = new DataView(buffer);
+  const text = (at, value) => { for (let i = 0; i < value.length; i++) view.setUint8(at + i, value.charCodeAt(i)); };
+  text(0, "RIFF");
+  view.setUint32(4, 36 + dataBytes, true);
+  text(8, "WAVE");
+  text(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, channelCount, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * channelCount * 2, true);
+  view.setUint16(32, channelCount * 2, true);
+  view.setUint16(34, 16, true);
+  text(36, "data");
+  view.setUint32(40, dataBytes, true);
+  // Every browser is little-endian, which is what WAV wants.
+  const pcm = new Int16Array(buffer, 44, frames * channelCount);
+  let out = 0;
+  for (let i = 0; i < frames; i++) {
+    const source = i + offset;
+    for (let c = 0; c < channelCount; c++, out++) {
+      const value = source >= 0 && source < length ? Math.max(-1, Math.min(1, channels[c][source])) : 0;
+      pcm[out] = value < 0 ? value * 0x8000 : value * 0x7fff;
+    }
+  }
+  return buffer;
+}
+
 const VERTEX_SHADER = `#version 300 es
 const vec2 corners[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
 out vec2 vUv;
@@ -10481,6 +10587,15 @@ function createRestorer(gl, params) {
 }
 
 // Source: src/settings.js
+/**
+ * The userscript's defaults from the desktop app's settings file. The desktop
+ * keeps a block length even while its audio switch is off; here 0 means off.
+ */
+function userscriptDefaults(app) {
+  const { width, height, tile, margin, seed, invert, autoIntro = true, audio = false, audioMs = 0 } = app;
+  return { width, height, tile, margin, seed, invert, autoIntro, audioMs: audio ? audioMs : 0 };
+}
+
 /** Validate desktop-compatible YUV420 parameters. Seed text is never trimmed. */
 function validateSettings(input, defaults) {
   const settings = {};
@@ -10505,6 +10620,11 @@ function validateSettings(input, defaults) {
   settings.seed = seed;
   settings.invert = parseInvert(input.invert ?? defaults.invert ?? false);
   settings.autoIntro = parseInvert(input.autoIntro ?? defaults.autoIntro ?? true);
+  const audioMs = input.audioMs ?? defaults.audioMs ?? 0;
+  settings.audioMs = typeof audioMs === 'string' && audioMs.trim() === '' ? 0 : Number(audioMs);
+  if (!Number.isSafeInteger(settings.audioMs) || settings.audioMs < 0 || settings.audioMs > 9999) {
+    throw new Error('音频块长需要 0–9999 的整数（0 表示不处理音频）');
+  }
   return settings;
 }
 
@@ -10548,7 +10668,7 @@ function descriptionSettings(text) {
 }
 
 /** What a remembered page holds: the plan, never the global preferences. */
-const PLAN_FIELDS = ['width', 'height', 'tile', 'margin', 'seed', 'invert'];
+const PLAN_FIELDS = ['width', 'height', 'tile', 'margin', 'seed', 'invert', 'audioMs'];
 
 /** One page's remembered plan, or null when it is absent or unusable. */
 function pageSettings(pages, key) {
@@ -10597,9 +10717,227 @@ function videoPageKey(href) {
   return url.pathname.startsWith('/video/') ? `${url.pathname}?p=${url.searchParams.get('p') ?? '1'}` : null;
 }
 
+// Source: src/audio.js
+/**
+ * Audio restoration for the userscript: the page plays the uploaded track,
+ * whose time runs backwards inside every block, so the script fetches that
+ * same track, turns the blocks back, and plays the result from a hidden
+ * <audio> element kept in step with the video.
+ *
+ * The whole track is decoded up front, which removes any need for look-ahead
+ * and lets the block grid be found in the signal itself; the price is
+ * memory: about 190 KB per second of stereo while playing, several times that
+ * briefly while decoding.
+ */
+
+const AUDIO_RATE = 48000;
+// Bilibili DASH audio stream ids: AAC 64k/132k/192k, Dolby, Hi-Res.
+const BILIBILI_AUDIO = /-(?:30216|30232|30280|30250|30251)\.m4s(?:[?#]|$)/;
+// Media elements can be captured by Web Audio only once in their lifetime.
+const captures = new WeakMap();
+
+/** The most recent audio request at or after `since` (ms, performance time). */
+function pickAudioUrl(entries, { since = 0, pattern = BILIBILI_AUDIO } = {}) {
+  let latest = null;
+  for (const entry of entries) {
+    if (entry.startTime >= since && pattern.test(entry.name) && (!latest || entry.startTime >= latest.startTime)) {
+      latest = entry;
+    }
+  }
+  return latest?.name ?? null;
+}
+
+/**
+ * Remembers the audio files the page's player fetches. Bilibili plays DASH
+ * through Media Source Extensions, so the element itself only has a blob:
+ * URL; the separate audio .m4s shows up in resource timing instead.
+ */
+function watchAudioUrls() {
+  const entries = [];
+  let observer = null;
+  try {
+    observer = new PerformanceObserver((list) => { entries.push(...list.getEntries()); });
+    observer.observe({ type: 'resource', buffered: true });
+  } catch {
+    entries.push(...performance.getEntriesByType('resource'));
+  }
+  return {
+    latest: (since) => pickAudioUrl(entries, { since }),
+    stop: () => observer?.disconnect(),
+  };
+}
+
+/** Where the audio of `video` can be fetched: its own URL, or the page's audio track. */
+async function locateAudio(video, watcher, { since = 0, timeoutMs = 20000, signal } = {}) {
+  const started = Date.now();
+  for (;;) {
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    if (/^https?:/i.test(video.currentSrc)) return video.currentSrc;
+    const url = watcher.latest(since);
+    if (url) return url;
+    if (Date.now() - started > timeoutMs) throw new Error('找不到这个视频的音轨地址');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+
+/**
+ * Silences the page's own output for `video`. Returns the mode, the mute
+ * state the restored track should follow, and a function that hands the
+ * sound back.
+ *
+ * Preferred: route the element through Web Audio at zero gain, which leaves
+ * its mute state and the player's controls alone. Routing moves the element's
+ * clock onto the audio graph, though, so the graph must run or the video
+ * itself stops; an AudioContext can only start after a user gesture on the
+ * page. Without one (or when the element is already captured elsewhere) the
+ * element is muted instead, which never touches its clock.
+ */
+function silence(video) {
+  if (navigator.userActivation?.hasBeenActive) {
+    try {
+      let capture = captures.get(video);
+      if (!capture) {
+        const context = new AudioContext();
+        const gain = context.createGain();
+        context.createMediaElementSource(video).connect(gain).connect(context.destination);
+        capture = { context, gain };
+        captures.set(video, capture);
+      }
+      capture.context.resume().catch(() => {});
+      capture.gain.gain.value = 0;
+      return {
+        mode: 'captured',
+        muted: () => video.muted,
+        restore() {
+          capture.gain.gain.value = 1;
+          capture.context.resume().catch(() => {});
+        },
+      };
+    } catch {
+      // Captured by the page itself; fall back to muting.
+    }
+  }
+  let wanted = video.muted;
+  video.muted = true;
+  return {
+    mode: 'muted',
+    // The player shows "muted" throughout; unmuting there means "let me hear
+    // it", so the restored track unmutes and the page's own stays silent.
+    muted() {
+      if (!video.muted) {
+        wanted = false;
+        video.muted = true;
+      }
+      return wanted;
+    },
+    restore() { video.muted = wanted; },
+  };
+}
+
+/**
+ * Starts restoring the audio of `video`, whose blocks of `blockMs` begin
+ * `introSeconds` into the media (the intro QR second). `report(state, text)`
+ * receives 'loading' | 'ready' | 'error' with a message. The returned handle's
+ * destroy() stops playback and hands the sound back to the page.
+ */
+function createAudioRestorer({ video, blockMs, introSeconds = 1, host, locate, report, findAudioGrid, reverseAudioBlocks, encodeWav }) {
+  const abort = new AbortController();
+  const silenced = silence(video);
+  const audio = document.createElement('audio');
+  audio.dataset.veilcastAudio = '';
+  audio.preload = 'auto';
+  host.append(audio);
+  let objectUrl = null;
+  let ready = false;
+
+  function follow() {
+    // Before anything else, so an unmute in the player never lets the
+    // scrambled track through, even while the restored one is loading.
+    const muted = silenced.muted();
+    if (!ready) return;
+    audio.volume = video.volume;
+    audio.muted = muted;
+    if (video.paused || video.ended || video.seeking || video.readyState < 3) {
+      audio.playbackRate = video.playbackRate;
+      audio.pause();
+      // Keep the position too, so scrubbing while paused resumes in step.
+      if (Math.abs(audio.currentTime - video.currentTime) > 0.01) audio.currentTime = video.currentTime;
+      return;
+    }
+    // Drift is pulled in by running fast or slow in proportion to it, at most
+    // 10% (pitch is preserved, so it goes unnoticed); only a jump such as a
+    // seek resyncs hard, since every hard resync restarts the audio late.
+    const lag = video.currentTime - audio.currentTime;
+    if (Math.abs(lag) > 0.25) {
+      audio.currentTime = video.currentTime;
+      audio.playbackRate = video.playbackRate;
+    } else {
+      const nudge = Math.abs(lag) > 0.015 ? Math.max(-0.1, Math.min(0.1, lag)) : 0;
+      audio.playbackRate = video.playbackRate * (1 + nudge);
+    }
+    if (audio.paused) {
+      audio.play().catch(() => {
+        report('ready', '音频已还原，但浏览器拦截了自动播放：点击页面任意处即可听到。');
+        document.addEventListener('pointerdown', follow, { once: true, capture: true, signal: abort.signal });
+      });
+    }
+  }
+  const events = ['play', 'playing', 'pause', 'waiting', 'seeking', 'seeked', 'ratechange', 'volumechange', 'timeupdate', 'ended'];
+  for (const name of events) video.addEventListener(name, follow, { signal: abort.signal });
+
+  (async () => {
+    try {
+      report('loading', '音频：正在查找音轨…');
+      const url = await locate(abort.signal);
+      report('loading', '音频：正在下载音轨…');
+      const response = await fetch(url, { signal: abort.signal });
+      if (!response.ok) throw new Error(`下载音轨失败：HTTP ${response.status}`);
+      const bytes = await response.arrayBuffer();
+      report('loading', '音频：正在解码并还原…');
+      const decoded = await new OfflineAudioContext(1, 1, AUDIO_RATE).decodeAudioData(bytes);
+      if (abort.signal.aborted) return;
+      const channels = Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i));
+      const nominal = Math.round(introSeconds * AUDIO_RATE);
+      const grid = findAudioGrid(channels, { sampleRate: AUDIO_RATE, blockMs, nominalStart: nominal });
+      // Nothing to lock onto (e.g. a silent track): trust the nominal grid.
+      const start = grid.confidence >= 2 ? grid.start : nominal;
+      // Blocks are reversed from the first grid point in the file; those
+      // inside the intro only hold silence, so reversing them is harmless and
+      // keeps a missing intro from leaving the first blocks backwards.
+      const block = Math.round((AUDIO_RATE * blockMs) / 1000);
+      reverseAudioBlocks(channels, { sampleRate: AUDIO_RATE, blockMs, start: ((start % block) + block) % block });
+      const wav = encodeWav(channels, AUDIO_RATE, { offset: start - nominal });
+      if (abort.signal.aborted) return;
+      objectUrl = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
+      audio.src = objectUrl;
+      ready = true;
+      const shift = ((start - nominal) / AUDIO_RATE) * 1000;
+      report('ready', `音频已还原 · 块长 ${blockMs} ms · 对齐 ${shift >= 0 ? '+' : ''}${shift.toFixed(1)} ms`);
+      follow();
+    } catch (error) {
+      if (abort.signal.aborted) return;
+      // The page's own track is scrambled, so it stays silent: noise would not help.
+      report('error', `音频还原失败，原声保持静音：${error.message ?? error}`);
+    }
+  })();
+
+  return {
+    blockMs,
+    mode: silenced.mode,
+    destroy() {
+      abort.abort();
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.remove();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      silenced.restore();
+    },
+  };
+}
+
 // Source: src/main.js
 /** Browser integration only. The renderer and desktop defaults are injected by the build. */
-function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, pageSettings, rememberPageSettings, forgetPageSettings, storage, menu }) {
+function installUserscript({ createRestorer, scanIntro, decodeQr, audio, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, pageSettings, rememberPageSettings, forgetPageSettings, storage, menu }) {
   const SELECTOR = '.bpx-player-primary-area video';
   const TOOLBAR_SELECTOR = '#arc_toolbar_report .video-toolbar-left-main';
   const STORAGE_KEY = 'veilcast.bilibili.settings.v1';
@@ -10613,6 +10951,10 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
   let scanHandle = null;
   let pageKey = videoPageKey(location.href);
   let disposed = false;
+  // Audio files the player fetched; only those requested after the current
+  // video was navigated to can belong to it.
+  const audioUrls = audio?.watchAudioUrls();
+  let navigatedAt = 0;
 
   /** This page's remembered plan, ignored when it no longer validates. */
   function pageMemory() {
@@ -10728,11 +11070,13 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
           <label>原始高度<input name="height" type="number" min="1" max="16384" step="1" required></label>
         </div>
         <small>填写加密前的尺寸，而非当前播放清晰度；五项参数需与加密端一致。</small>
+        <label>音频块长 ms（0 = 不处理音频）<input name="audioMs" type="number" min="0" max="9999" step="50" required></label>
         <label class="check"><input name="invert" type="checkbox">反色（与加密端保持一致）</label>
         <label class="check"><input name="autoIntro" type="checkbox">自动读取片头二维码并启用还原</label>
         <button id="from-description" type="button">读取简介参数</button>
         <div class="row"><button id="toggle" type="button">启用还原</button><button type="submit">应用参数</button><button id="reset" type="button">默认</button></div>
         <p id="status" role="status" aria-live="polite"></p>
+        <p id="audio-status" role="status" aria-live="polite" hidden></p>
         <small>只处理画面；声音、弹幕和播放控制仍由原播放器负责。</small>
       </form></dialog>`;
     toolbar.after(ui);
@@ -10782,7 +11126,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
       openButton.setAttribute('aria-expanded', String(dialog.open));
     }
     function fill(values = settings) {
-      for (const name of ['seed', 'tile', 'margin', 'width', 'height']) form.elements.namedItem(name).value = values[name];
+      for (const name of ['seed', 'tile', 'margin', 'width', 'height', 'audioMs']) form.elements.namedItem(name).value = values[name];
       form.elements.namedItem('invert').checked = values.invert;
       form.elements.namedItem('autoIntro').checked = values.autoIntro;
     }
@@ -10810,6 +11154,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
         tile: header.tile,
         margin: header.margin,
         invert: header.invert,
+        audioMs: header.audioMs,
         seed: header.seed === null ? settings.seed : String(header.seed),
       });
       if (!apply()) return;
@@ -10822,6 +11167,37 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
       message(header.seed === null
         ? '已从片头二维码读取尺寸、tile、margin 和反色（片头不含 seed，沿用当前 seed）并启用还原，参数已记住。'
         : '已从片头二维码读取全部参数（含 seed）并启用还原，参数已记住。');
+    }
+    const audioStatus = shadow.getElementById('audio-status');
+    let audioRestorer = null;
+    function audioReport(state, text) {
+      ui.dataset.audio = state;
+      audioStatus.textContent = text;
+      audioStatus.hidden = !text;
+      audioStatus.dataset.error = String(state === 'error');
+    }
+    /** Keeps the audio restorer in line with `enabled` and the block length. */
+    function syncAudio() {
+      const wanted = !dead && enabled && settings.audioMs > 0 && Boolean(audio);
+      if (audioRestorer && (!wanted || audioRestorer.blockMs !== settings.audioMs)) {
+        audioRestorer.destroy();
+        audioRestorer = null;
+      }
+      if (!wanted) {
+        audioReport('off', '');
+        delete ui.dataset.audioMode;
+        return;
+      }
+      if (audioRestorer) return;
+      const since = navigatedAt;
+      audioRestorer = audio.createAudioRestorer({
+        video,
+        blockMs: settings.audioMs,
+        host: shadow,
+        locate: (signal) => audio.locateAudio(video, audioUrls, { since, signal }),
+        report: audioReport,
+      });
+      ui.dataset.audioMode = audioRestorer.mode;
     }
     function updateToggle() {
       toggle.textContent = enabled ? '停用还原' : '启用还原';
@@ -10845,6 +11221,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
       enabled = false;
       stopRenderer();
       updateToggle();
+      syncAudio();
       message(`还原已停止，保留原画面：${error.message ?? error}。请检查参数、WebGL 或视频跨域限制。`, true);
       open();
     }
@@ -10895,8 +11272,9 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
         syncBox();
         message('等待视频帧…');
         render();
-      } catch (error) { fail(error); }
+      } catch (error) { fail(error); return; }
       updateToggle();
+      syncAudio();
     }
     function apply() {
       if (!form.reportValidity()) return false;
@@ -10904,6 +11282,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
         const values = Object.fromEntries(new FormData(form));
         values.invert = form.elements.namedItem('invert').checked;
         values.autoIntro = form.elements.namedItem('autoIntro').checked;
+        values.audioMs = form.elements.namedItem('audioMs').value;
         settings = validateSettings(values, defaults);
       } catch (error) { message(error.message, true); return false; }
       settingsNotice = '';
@@ -10912,7 +11291,10 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
       // A seed the intro could not carry belongs to this video, not to the next one.
       rememberPage(settings, 'manual');
       if (enabled) startRenderer();
-      else message(`参数已应用；还原处于关闭状态。${settingsNotice}`);
+      else {
+        message(`参数已应用；还原处于关闭状态。${settingsNotice}`);
+        syncAudio();
+      }
       return true;
     }
 
@@ -10945,6 +11327,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
         enabled = false;
         stopRenderer();
         updateToggle();
+        syncAudio();
         message('还原已关闭，显示原画面。');
       } else if (apply()) {
         enabled = true;
@@ -10999,6 +11382,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
     message(settingsNotice || '还原未启用；请核对 seed、tile、margin 和原始宽高，再点击「启用还原」。', Boolean(settingsNotice));
     if (settingsNotice) open();
     if (enabled) startRenderer();
+    else syncAudio();
 
     return {
       video, wrapper, area, ui, canvas, open,
@@ -11013,6 +11397,8 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
         dead = true;
         open(false);
         listeners.abort();
+        audioRestorer?.destroy();
+        audioRestorer = null;
         resizeObserver.disconnect();
         stopRenderer();
         gl?.getExtension('WEBGL_lose_context')?.loseContext();
@@ -11031,6 +11417,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
     const nextKey = videoPageKey(location.href);
     if (nextKey !== pageKey) {
       pageKey = nextKey;
+      navigatedAt = performance.now();
       active?.dispose();
       active = null;
       settings = loadSettings();
@@ -11076,6 +11463,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
     disposed = true;
     lifetime.abort();
     observer.disconnect();
+    audioUrls?.stop();
     clearInterval(timer);
     if (scanHandle !== null) cancelAnimationFrame(scanHandle);
     active?.dispose();
@@ -11089,7 +11477,11 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, defaults, vali
 installUserscript({
   createRestorer, scanIntro, decodeQr, validateSettings, querySettings, descriptionSettings, videoPageKey,
   pageSettings, rememberPageSettings, forgetPageSettings,
-  defaults: {"width":720,"height":1280,"tile":40,"margin":0,"seed":"20040821","invert":false,"autoIntro":true},
+  audio: {
+    watchAudioUrls, locateAudio,
+    createAudioRestorer: (options) => createAudioRestorer({ ...options, findAudioGrid, reverseAudioBlocks, encodeWav }),
+  },
+  defaults: {"width":720,"height":1280,"tile":40,"margin":0,"seed":"20040821","invert":false,"autoIntro":true,"audioMs":0},
   storage: { get: GM_getValue, set: GM_setValue },
   menu: { register: GM_registerMenuCommand, unregister: GM_unregisterMenuCommand },
 });
