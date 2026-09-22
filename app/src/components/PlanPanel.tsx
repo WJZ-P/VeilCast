@@ -13,6 +13,9 @@ export interface PlanSettings {
   intro: boolean;
   seedInIntro: boolean;
   gpu: boolean;
+  /** Reverse time inside audio blocks; `audioMs` is the block length. */
+  audio: boolean;
+  audioMs: number;
 }
 
 interface Props {
@@ -124,6 +127,34 @@ export function PlanPanel({ settings, onChange, sizeFromFile }: Props) {
           onChange={(e) => onChange({ ...settings, seedInIntro: e.currentTarget.checked })}
         />
         把 seed 也写进二维码（任何人装了脚本都能观看）
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          type="checkbox"
+          checked={settings.audio}
+          onChange={(e) =>
+            onChange({
+              ...settings,
+              audio: e.currentTarget.checked,
+              // Settings saved by the earlier "0 = off" field hold 0 here.
+              audioMs: settings.audioMs > 0 ? settings.audioMs : 250,
+            })
+          }
+        />
+        音频加扰（分块倒放，解密时自动还原）
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, opacity: settings.audio ? 1 : 0.5 }}>
+          块长
+          <input
+            type="number"
+            min={50}
+            step={50}
+            value={settings.audioMs}
+            disabled={!settings.audio}
+            onChange={(e) => onChange({ ...settings, audioMs: Number(e.currentTarget.value) })}
+            style={{ width: 72 }}
+          />
+          ms
+        </span>
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <input

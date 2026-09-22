@@ -10,8 +10,8 @@ use std::thread;
 
 use serde::{Deserialize, Serialize};
 use veilcast_core::{
-    IntroHeader, Yuv420Layout, Yuv420Plan, invert_yuv420_limited, seed_from_text,
-    seeded_permutation,
+    IntroHeader, Yuv420Layout, Yuv420Plan, block_frames, invert_yuv420_limited, reverse_blocks,
+    seed_from_text, seeded_permutation,
 };
 
 use crate::intro;
@@ -19,6 +19,13 @@ use crate::intro;
 /// Tag written into scrambled files so restore can prefill the geometry.
 /// The seed is deliberately not included.
 const METADATA_PREFIX: &str = "veilcast/1";
+
+/// Audio is pinned to 48 kHz so the block grid is the same number of samples
+/// on both ends, whatever the source used.
+const AUDIO_RATE: u32 = 48_000;
+/// One sample per channel, 16-bit: the transform only moves whole frames, so
+/// the integer format costs nothing and halves the scratch file.
+const AUDIO_SAMPLE_BYTES: usize = 2;
 
 pub struct Tools {
     ffmpeg: PathBuf,
@@ -214,6 +221,10 @@ pub struct PlanHint {
     pub invert: bool,
     /// Length of the QR intro at the start of the file, 0 when there is none.
     pub intro_ms: u32,
+    /// Audio block length in milliseconds, 0 when the audio was left alone.
+    /// `None` when unknown: header version 1 in the intro QR code has no
+    /// audio field, so only the metadata tag can say.
+    pub audio_ms: Option<u32>,
     /// Numeric seed carried by the intro QR code, as a decimal string.
     pub seed: Option<String>,
 }
@@ -227,6 +238,8 @@ impl From<IntroHeader> for PlanHint {
             margin: header.margin,
             invert: header.invert,
             intro_ms: (intro::INTRO_SECONDS * 1000.0) as u32,
+            // Header version 1 has no audio field; a stripped file cannot say.
+            audio_ms: None,
             seed: header.seed.map(|seed| seed.to_string()),
         }
     }
@@ -266,6 +279,8 @@ pub struct VideoInfo {
     pub frames: u64,
     pub codec: String,
     pub has_audio: bool,
+    /// Channels in the first audio stream, 0 when the file has none.
+    pub audio_channels: usize,
     color: ColorTags,
     pub hint: Option<PlanHint>,
 }
@@ -296,7 +311,9 @@ pub fn probe(tools: &Tools, path: &str) -> Result<VideoInfo, String> {
         .iter()
         .find(|s| s["codec_type"] == "video")
         .ok_or("文件里没有视频流")?;
-    let has_audio = streams.iter().any(|s| s["codec_type"] == "audio");
+    let audio = streams.iter().find(|s| s["codec_type"] == "audio");
+    let has_audio = audio.is_some();
+    let audio_channels = audio.and_then(|s| s["channels"].as_u64()).unwrap_or(0) as usize;
 
     let text = |v: &serde_json::Value| v.as_str().map(str::to_string);
     let fps_rational = text(&video["r_frame_rate"]).unwrap_or_else(|| "30/1".into());
@@ -321,6 +338,7 @@ pub fn probe(tools: &Tools, path: &str) -> Result<VideoInfo, String> {
         frames,
         codec: text(&video["codec_name"]).unwrap_or_default(),
         has_audio,
+        audio_channels,
         color: ColorTags {
             range: text(&video["color_range"]),
             space: text(&video["color_space"]),
@@ -347,6 +365,8 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
         margin: 0,
         invert: false,
         intro_ms: 0,
+        // Tags written before audio support never touched the audio.
+        audio_ms: Some(0),
         seed: None,
     };
     let mut source = None;
@@ -364,6 +384,7 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
             "tile" => hint.tile = value,
             "margin" => hint.margin = value,
             "intro" => hint.intro_ms = u32::try_from(value).ok()?,
+            "audio" => hint.audio_ms = Some(u32::try_from(value).ok()?),
             "invert" => {
                 hint.invert = match value {
                     0 => false,
@@ -487,6 +508,10 @@ pub struct JobParams {
     /// anyone with the viewer can restore without being told the seed.
     #[serde(default)]
     pub seed_in_intro: bool,
+    /// Audio block length in milliseconds; 0 leaves the audio untouched.
+    /// The same value scrambles and restores, see [`scramble_audio`].
+    #[serde(default)]
+    pub audio_ms: u32,
     /// Encode with the machine's hardware encoder (see [`hardware_encoder`]);
     /// falls back to libx264 when none initialises.
     #[serde(default)]
@@ -513,6 +538,159 @@ pub struct JobResult {
     pub upload_height: usize,
     /// ffmpeg encoder name actually used, e.g. `libx264` or `h264_nvenc`.
     pub encoder: String,
+    /// Audio block length applied, 0 when the audio was left alone (not
+    /// requested, or the input has no audio track).
+    pub audio_ms: u32,
+}
+
+/// A scratch file that is removed when the job holding it ends, either way.
+pub struct TempFile(PathBuf);
+
+impl TempFile {
+    fn new(extension: &str) -> Result<Self, String> {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let serial = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "veilcast-{}-{serial}.{extension}",
+            std::process::id()
+        ));
+        Ok(Self(path))
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TempFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// Reverses time inside fixed audio blocks and writes the result to a
+/// temporary lossless file for the encoder to mux.
+///
+/// The transform is its own inverse, so scramble and restore differ only in
+/// where the intro second goes: scrambling prepends it after the reversal,
+/// restoring trims it before, which leaves the block grid anchored to the
+/// content in both directions. Decoding to 16-bit PCM is lossless here
+/// because only whole frames ever move.
+pub fn scramble_audio(
+    tools: &Tools,
+    input: &str,
+    mode: Mode,
+    block_ms: u32,
+    channels: usize,
+    intro_seconds: Option<f64>,
+) -> Result<TempFile, String> {
+    let block = block_frames(block_ms, AUDIO_RATE);
+    if block == 0 {
+        return Err(format!("音频分块长度 {block_ms} ms 太短"));
+    }
+    if channels == 0 {
+        return Err("音频流没有声道".into());
+    }
+    let frame_bytes = channels * AUDIO_SAMPLE_BYTES;
+    let target = TempFile::new("flac")?;
+    let rate = AUDIO_RATE.to_string();
+    let channels_text = channels.to_string();
+
+    let mut decoder = command(&tools.ffmpeg);
+    decoder.args(["-v", "error", "-nostats", "-i", input, "-vn"]);
+    if let (Some(seconds), Mode::Restore) = (intro_seconds, mode) {
+        decoder.args([
+            "-af",
+            &format!("atrim=start={seconds},asetpts=PTS-STARTPTS"),
+        ]);
+    }
+    decoder
+        .args(["-f", "s16le", "-ar", &rate, "-ac", &channels_text, "-"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut encoder = command(&tools.ffmpeg);
+    encoder.args([
+        "-v",
+        "error",
+        "-nostats",
+        "-f",
+        "s16le",
+        "-ar",
+        &rate,
+        "-ac",
+        &channels_text,
+        "-i",
+        "-",
+    ]);
+    if let (Some(seconds), Mode::Scramble) = (intro_seconds, mode) {
+        encoder.args([
+            "-af",
+            &format!("adelay={}:all=1", (seconds * 1000.0) as u32),
+        ]);
+    }
+    encoder
+        .args(["-c:a", "flac", "-y"])
+        .arg(target.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+
+    let mut decoder = decoder
+        .spawn()
+        .map_err(|e| format!("无法启动音频解码 ffmpeg: {e}"))?;
+    let mut encoder = encoder
+        .spawn()
+        .map_err(|e| format!("无法启动音频编码 ffmpeg: {e}"))?;
+    let decoder_errors = drain_stderr(decoder.stderr.take());
+    let encoder_errors = drain_stderr(encoder.stderr.take());
+    let mut pcm_in = decoder.stdout.take().ok_or("音频解码器没有输出管道")?;
+    let mut pcm_out = encoder.stdin.take().ok_or("音频编码器没有输入管道")?;
+
+    // One block per read, so a whole block is always in hand; the short final
+    // read is left unreversed by `reverse_blocks`.
+    let mut buffer = vec![0u8; block * frame_bytes];
+    let pump = (|| -> Result<(), String> {
+        loop {
+            let filled =
+                fill(&mut pcm_in, &mut buffer).map_err(|e| format!("读取音频失败: {e}"))?;
+            if filled == 0 {
+                break;
+            }
+            let whole = filled - filled % frame_bytes;
+            let chunk = &mut buffer[..whole];
+            reverse_blocks(chunk, frame_bytes, block).map_err(|e| e.to_string())?;
+            pcm_out
+                .write_all(chunk)
+                .map_err(|e| format!("写入音频失败: {e}"))?;
+        }
+        Ok(())
+    })();
+    drop(pcm_out);
+    let decoder_status = wait(&mut decoder);
+    let encoder_status = wait(&mut encoder);
+    let decoder_errors = decoder_errors.join().unwrap_or_default();
+    let encoder_errors = encoder_errors.join().unwrap_or_default();
+    if let Err(error) = pump {
+        let details = [decoder_errors.trim(), encoder_errors.trim()]
+            .into_iter()
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(if details.is_empty() {
+            error
+        } else {
+            format!("{error} ({details})")
+        });
+    }
+    if !decoder_status {
+        return Err(format!("音频解码失败: {}", decoder_errors.trim()));
+    }
+    if !encoder_status {
+        return Err(format!("音频编码失败: {}", encoder_errors.trim()));
+    }
+    Ok(target)
 }
 
 /// Runs one scramble or restore job to completion, reporting progress as frames go through.
@@ -560,6 +738,21 @@ pub fn run_job(
             seed: params.seed_in_intro.then(|| seed_from_text(&params.seed)),
         };
         Some(intro::render_frame(&header, scrambled)?)
+    } else {
+        None
+    };
+
+    // Audio runs in its own pass and reaches the encoder as a temporary
+    // lossless file, so the video pipe below stays exactly as it was.
+    let audio_temp = if params.audio_ms > 0 && info.has_audio {
+        Some(scramble_audio(
+            tools,
+            &params.input,
+            params.mode,
+            params.audio_ms,
+            info.audio_channels,
+            (intro_frames > 0).then_some(intro::INTRO_SECONDS),
+        )?)
     } else {
         None
     };
@@ -646,6 +839,12 @@ pub fn run_job(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
+    // The transformed track already carries the intro shift, so it is muxed
+    // in place of the original input's audio.
+    let audio_input = audio_temp.as_ref().map_or_else(
+        || params.input.clone(),
+        |temp| temp.path().to_string_lossy().into_owned(),
+    );
     let hw = if params.gpu {
         hardware_encoder(tools)
     } else {
@@ -661,8 +860,8 @@ pub fn run_job(
             &format!("{}x{}", out_layout.width(), out_layout.height()),
         ])
         .args(["-framerate", &info.fps_rational, "-i", "-"])
-        .args(["-i", &params.input, "-map", "0:v", "-map", "1:a?"])
-        .args(audio_args(params, intro_frames > 0))
+        .args(["-i", &audio_input, "-map", "0:v", "-map", "1:a?"])
+        .args(audio_args(params, intro_frames > 0, audio_temp.is_some()))
         .args(["-vf", &encode_filter])
         .args(video_codec_args(hw))
         .args(["-pix_fmt", "yuv420p"])
@@ -675,7 +874,7 @@ pub fn run_job(
         encoder.args([
             "-metadata",
             &format!(
-                "comment={METADATA_PREFIX} width={} height={} tile={} margin={} source={}x{} invert={} intro={}",
+                "comment={METADATA_PREFIX} width={} height={} tile={} margin={} source={}x{} invert={} intro={} audio={}",
                 work.width,
                 work.height,
                 params.tile,
@@ -683,7 +882,8 @@ pub fn run_job(
                 params.width,
                 params.height,
                 u8::from(params.invert),
-                if intro_frames > 0 { (intro::INTRO_SECONDS * 1000.0) as u32 } else { 0 }
+                if intro_frames > 0 { (intro::INTRO_SECONDS * 1000.0) as u32 } else { 0 },
+                if audio_temp.is_some() { params.audio_ms } else { 0 }
             ),
         ]);
     }
@@ -792,13 +992,22 @@ pub fn run_job(
         upload_width: scrambled.width(),
         upload_height: scrambled.height(),
         encoder: codec.to_string(),
+        audio_ms: if audio_temp.is_some() {
+            params.audio_ms
+        } else {
+            0
+        },
     })
 }
 
 /// Audio is copied untouched unless the intro shifts the timeline: then it is
 /// delayed (scramble) or trimmed (restore) by the intro length and re-encoded.
-fn audio_args(params: &JobParams, intro: bool) -> Vec<String> {
+fn audio_args(params: &JobParams, intro: bool, transformed: bool) -> Vec<String> {
     let owned = |items: &[&str]| items.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    if transformed {
+        // The separate pass already trimmed or delayed the track.
+        return owned(&["-c:a", "aac", "-b:a", "192k"]);
+    }
     if !intro {
         return owned(&["-c:a", "copy"]);
     }
@@ -822,6 +1031,18 @@ fn drain_stderr(stderr: Option<ChildStderr>) -> thread::JoinHandle<String> {
 
 fn wait(child: &mut Child) -> bool {
     child.wait().map(|status| status.success()).unwrap_or(false)
+}
+
+/// Reads until the buffer is full or the stream ends; returns the bytes read.
+fn fill(reader: &mut impl Read, buffer: &mut [u8]) -> std::io::Result<usize> {
+    let mut filled = 0;
+    while filled < buffer.len() {
+        match reader.read(&mut buffer[filled..])? {
+            0 => break,
+            n => filled += n,
+        }
+    }
+    Ok(filled)
 }
 
 /// Fills `frame` completely, or returns `Ok(false)` on a clean end of stream.

@@ -84,6 +84,7 @@ export function JobPanel({ outputDir, onOutputDir, canRun, job, onRun }: Props) 
             输出：{job.result.output}
             {job.mode === "scramble" && `（${job.result.upload_width} × ${job.result.upload_height}）`}
             {` · 编码器 ${job.result.encoder}`}
+            {` · 音频${job.result.audio_ms ? `分块倒放 ${job.result.audio_ms} ms` : "未处理"}`}
           </Note>
           <Button type="button" onClick={() => revealItemInDir(job.result!.output)}>
             在文件夹中显示

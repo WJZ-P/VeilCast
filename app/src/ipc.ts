@@ -36,6 +36,8 @@ export interface PlanHint {
   intro_ms: number;
   /** Numeric seed carried by the intro QR code, as a decimal string. */
   seed: string | null;
+  /** Audio block length in ms, 0 = untouched; null when only the QR code was readable. */
+  audio_ms: number | null;
 }
 
 export interface VideoInfo {
@@ -47,6 +49,7 @@ export interface VideoInfo {
   frames: number;
   codec: string;
   has_audio: boolean;
+  audio_channels: number;
   hint: PlanHint | null;
 }
 
@@ -64,6 +67,8 @@ export interface JobParams extends PlanParams {
   seedInIntro: boolean;
   /** Encode with the machine's hardware encoder if one works; otherwise libx264. */
   gpu: boolean;
+  /** Reverse time inside audio blocks of this many ms; 0 leaves the audio alone. Self-inverse. */
+  audioMs: number;
 }
 
 export interface Progress {
@@ -80,6 +85,8 @@ export interface JobResult {
   upload_height: number;
   /** ffmpeg encoder name actually used, e.g. "libx264" or "h264_nvenc". */
   encoder: string;
+  /** Audio block length applied; 0 when the audio was left alone. */
+  audio_ms: number;
 }
 
 /** The hardware encoder `gpu` jobs will use on this machine. */

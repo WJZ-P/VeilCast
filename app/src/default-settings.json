@@ -9,5 +9,7 @@
   "intro": true,
   "seedInIntro": false,
   "gpu": true,
+  "audio": false,
+  "audioMs": 250,
   "autoIntro": true
 }

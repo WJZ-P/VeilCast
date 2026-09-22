@@ -80,6 +80,7 @@ fn padded_sources_scramble_to_the_work_size_and_restore_to_the_source_size() {
         intro: false,
         seed_in_intro: false,
         gpu: false,
+        audio_ms: 0,
     };
     let scrambled = run_job(&tools, &params(&odd, Mode::Scramble), |_| {}).unwrap();
     assert_eq!(scrambled.work, fit(720, 1274, 40));
@@ -137,6 +138,7 @@ fn scramble_then_restore_round_trips_through_ffmpeg() {
         intro: false,
         seed_in_intro: false,
         gpu: false,
+        audio_ms: 0,
     };
 
     let mut progress = Vec::new();
@@ -208,6 +210,7 @@ fn intro_qr_survives_metadata_loss_and_a_low_resolution_transcode() {
         intro: true,
         seed_in_intro,
         gpu: false,
+        audio_ms: 0,
     };
 
     // Scramble with a one-second intro carrying the seed.
@@ -368,6 +371,7 @@ fn gpu_jobs_use_the_detected_hardware_encoder_or_fall_back_to_x264() {
         intro: true,
         seed_in_intro: false,
         gpu,
+        audio_ms: 0,
     };
 
     let scrambled = run_job(&tools, &params(SAMPLE, Mode::Scramble, true), |_| {}).unwrap();
