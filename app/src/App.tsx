@@ -24,6 +24,13 @@ const Title = styled.h1`
   font-weight: 500;
   color: #e8e8f0;
 
+  img {
+    width: 28px;
+    height: 28px;
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+
   span {
     margin-left: 8px;
     font-size: 13px;
@@ -158,6 +165,7 @@ function App() {
   return (
     <Shell>
       <Title>
+        <img src="/icon.png" width={28} height={28} alt="" aria-hidden="true" />
         VeilCast<span>{status}</span>
       </Title>
       <DropZone file={file} onFile={onFile} />

@@ -1,5 +1,5 @@
 /** Browser integration only. The renderer and desktop defaults are injected by the build. */
-export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, pageSettings, rememberPageSettings, forgetPageSettings, storage, menu }) {
+export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, pageSettings, rememberPageSettings, forgetPageSettings, storage, menu, iconUrl }) {
   const SELECTOR = '.bpx-player-primary-area video';
   const TOOLBAR_SELECTOR = '#arc_toolbar_report .video-toolbar-left-main';
   const STORAGE_KEY = 'veilcast.bilibili.settings.v1';
@@ -96,7 +96,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
         #open { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 4px;
           white-space: nowrap; background: transparent; border: 0; color: var(--text2, #9499a0); font-size: 14px; }
         #open:hover, #open[aria-expanded=true], :host([data-enabled=true]) #open { color: #00aeec; }
-        #open svg { width: 20px; height: 20px; flex-shrink: 0; }
+        #open img { display: block; width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
         dialog { position: fixed; margin: 0; width: min(360px, calc(100vw - 24px)); max-width: none;
           padding: 16px; overflow-y: auto; border: 1px solid #46516b; border-radius: 12px;
           background: #141b2a; color: #ecf0f8; color-scheme: dark; box-shadow: 0 10px 36px #0007; }
@@ -116,7 +116,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
         small { display: block; color: #95a7c6; margin-bottom: 10px; }
       </style>
       <button id="open" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="panel">
-        <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z"/></svg>
+        <img id="brand-icon" width="20" height="20" alt="" aria-hidden="true" draggable="false">
         <span id="button-label">VeilCast · 关</span>
       </button>
       <dialog id="panel" aria-labelledby="panel-title">
@@ -141,6 +141,9 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
         <p id="audio-status" role="status" aria-live="polite" hidden></p>
         <small>只处理画面；声音、弹幕和播放控制仍由原播放器负责。</small>
       </form></dialog>`;
+    const brandIcon = shadow.getElementById('brand-icon');
+    if (iconUrl) brandIcon.src = iconUrl;
+    else brandIcon.hidden = true;
     toolbar.after(ui);
     const form = shadow.querySelector('form');
     const dialog = shadow.getElementById('panel');
