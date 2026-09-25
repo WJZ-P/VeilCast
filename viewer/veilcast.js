@@ -81,25 +81,28 @@ function headerChecksum(digits) {
   return String(r).padStart(2, "0");
 }
 
-function validateHeaderFields({ width, height, tile, margin, audioMs }) {
+function validateHeaderFields({ width, height, tile, margin, audioMs, audioMirror = false }) {
   if (!Number.isInteger(width) || width < 1 || width > 9999) throw new Error("header field width is out of range");
   if (!Number.isInteger(height) || height < 1 || height > 9999) throw new Error("header field height is out of range");
   if (!Number.isInteger(tile) || tile < 2 || tile > 998 || tile % 2 !== 0) throw new Error("header field tile is out of range");
   if (!Number.isInteger(margin) || margin < 0 || margin > 98 || margin % 2 !== 0) throw new Error("header field margin is out of range");
   if (!Number.isInteger(audioMs) || audioMs < 0 || audioMs > 9999) throw new Error("header field audio is out of range");
+  if (audioMirror && audioMs === 0) throw new Error("header field flags is out of range");
 }
 
 /**
  * Digit string of the intro header, identical to IntroHeader::encode in Rust:
  * version(2) width(4) height(4) tile(3) margin(2) flags(1) audio(4) [seed(20)] check(2).
+ * Flags: bit 0 invert, bit 1 audio spectrum mirror (only with audio).
  * `audioMs` is the audio block length (0 = audio untouched). `seed` is the
  * numeric seed (bigint/number) or null; the text a user typed goes through
  * seedFromText first.
  */
-export function encodeIntroHeader({ width, height, tile, margin, invert = false, audioMs = 0, seed = null }) {
-  validateHeaderFields({ width, height, tile, margin, audioMs });
+export function encodeIntroHeader({ width, height, tile, margin, invert = false, audioMs = 0, audioMirror = false, seed = null }) {
+  validateHeaderFields({ width, height, tile, margin, audioMs, audioMirror });
   const pad = (value, digits) => String(value).padStart(digits, "0");
-  let digits = pad(HEADER_VERSION, 2) + pad(width, 4) + pad(height, 4) + pad(tile, 3) + pad(margin, 2) + (invert ? "1" : "0") + pad(audioMs, 4);
+  const flags = (invert ? 1 : 0) | (audioMirror ? 2 : 0);
+  let digits = pad(HEADER_VERSION, 2) + pad(width, 4) + pad(height, 4) + pad(tile, 3) + pad(margin, 2) + flags + pad(audioMs, 4);
   if (seed !== null && seed !== undefined) {
     const value = BigInt(seed);
     if (value < 0n || value > MASK64) throw new Error("header field seed is out of range");
@@ -119,7 +122,7 @@ export function parseIntroHeader(text) {
   if (version !== HEADER_VERSION) throw new Error(`unknown header version ${version}`);
   if (text.slice(-2) !== headerChecksum(text.slice(0, -2))) throw new Error("header checksum mismatch");
   const flags = Number(text[15]);
-  if (flags > 1) throw new Error("header field flags is out of range");
+  if (flags > 3) throw new Error("header field flags is out of range");
   let seed = null;
   if (text.length === 38 || text.length === 42) {
     const seedOffset = legacy ? 16 : 20;
@@ -131,8 +134,9 @@ export function parseIntroHeader(text) {
     height: Number(text.slice(6, 10)),
     tile: Number(text.slice(10, 13)),
     margin: Number(text.slice(13, 15)),
-    invert: flags === 1,
+    invert: (flags & 1) === 1,
     audioMs: legacy ? 0 : Number(text.slice(16, 20)),
+    audioMirror: (flags & 2) === 2,
     seed,
   };
   validateHeaderFields(header);
@@ -236,7 +240,7 @@ export function scanIntro(video, { decode, untilSeconds = 1.5, intervalMs = 100,
             try {
               const header = parseIntroHeader(text.trim());
               emit('header-valid', { format: [18, 38].includes(text.trim().length) ? 'v1-legacy' : 'v1-audio', width: header.width, height: header.height, tile: header.tile,
-                margin: header.margin, invert: header.invert, audioMs: header.audioMs, hasSeed: header.seed !== null });
+                margin: header.margin, invert: header.invert, audioMs: header.audioMs, audioMirror: header.audioMirror, hasSeed: header.seed !== null });
               return stop(header, 'found');
             } catch (error) {
               invalidHeaders++;
@@ -286,6 +290,191 @@ export function reverseAudioBlocks(channels, { sampleRate, blockMs, start = 0 })
   return blocks;
 }
 
+// Spectrum mirror geometry, shared with veilcast_core::SpectrumMirror: a
+// 16384-point STFT (2.93 Hz bins at 48 kHz) with sqrt-Hann windows at half
+// overlap, mirroring bins 56..=3416 (164 Hz–10 kHz) onto each other, bin
+// k <-> MIRROR_CENTER - k. Long frames keep the band edges sharp; with 2048
+// points the edges leak enough to cost ~15 dB of round-trip SNR.
+const MIRROR_SIZE = 16384;
+const MIRROR_HOP = MIRROR_SIZE / 2;
+const MIRROR_LOW = 56;
+const MIRROR_HIGH = 3416;
+const MIRROR_CENTER = MIRROR_LOW + MIRROR_HIGH;
+let mirrorTables = null;
+
+function mirrorFft() {
+  if (mirrorTables) return mirrorTables;
+  const n = MIRROR_SIZE;
+  const bits = Math.log2(n);
+  const reversed = new Uint32Array(n);
+  for (let i = 0; i < n; i++) {
+    let r = 0;
+    for (let b = 0; b < bits; b++) r |= ((i >> b) & 1) << (bits - 1 - b);
+    reversed[i] = r;
+  }
+  const cos = new Float64Array(n / 2), sin = new Float64Array(n / 2);
+  for (let i = 0; i < n / 2; i++) { cos[i] = Math.cos((2 * Math.PI * i) / n); sin[i] = -Math.sin((2 * Math.PI * i) / n); }
+  const window = Float64Array.from({ length: n }, (_, m) => Math.sin((Math.PI * m) / n));
+  // In place, forward (e^-i); the inverse runs it on the conjugate.
+  const transform = (re, im) => {
+    for (let i = 0; i < n; i++) {
+      const j = reversed[i];
+      if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const half = len >> 1, step = n / len;
+      for (let i = 0; i < n; i += len) {
+        for (let k = 0; k < half; k++) {
+          const wr = cos[k * step], wi = sin[k * step];
+          const a = i + k, b = a + half;
+          const tr = re[b] * wr - im[b] * wi, ti = re[b] * wi + im[b] * wr;
+          re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+        }
+      }
+    }
+  };
+  return (mirrorTables = { window, transform });
+}
+
+/**
+ * Mirrors one packed frame spectrum (two real channels as re + i·im) in
+ * place: bin k takes e^{iφ}·Z[N-(C-k)] and bin N-k takes e^{-iφ}·Z[C-k].
+ * On a real channel that is exactly a 2·cos carrier at C bins followed by
+ * the band limit, i.e. f -> C·fs/N - f; applying it twice is the identity.
+ */
+function mirrorFrame(re, im, phase, scratch) {
+  const n = MIRROR_SIZE;
+  const c = Math.cos(phase), s = Math.sin(phase);
+  for (let k = MIRROR_LOW; k <= MIRROR_HIGH; k++) {
+    scratch[4 * k] = re[k]; scratch[4 * k + 1] = im[k];
+    scratch[4 * k + 2] = re[n - k]; scratch[4 * k + 3] = im[n - k];
+  }
+  for (let k = MIRROR_LOW; k <= MIRROR_HIGH; k++) {
+    const j = MIRROR_CENTER - k;
+    const nr = scratch[4 * j + 2], ni = scratch[4 * j + 3]; // Z[N - j]
+    const pr = scratch[4 * j], pi = scratch[4 * j + 1]; // Z[j]
+    re[k] = c * nr - s * ni; im[k] = s * nr + c * ni;
+    re[n - k] = c * pr + s * pi; im[n - k] = c * pi - s * pr;
+  }
+}
+
+function* mirrorSteps(channels, anchor, sliceFrames) {
+  const scratch = new Float64Array(4 * (MIRROR_HIGH + 1));
+  yield* stftSteps(channels, sliceFrames, (re, im, start) => {
+    // Carrier phase at this frame's first sample, measured from the anchor.
+    const offset = (((start - anchor) % MIRROR_SIZE) + MIRROR_SIZE) % MIRROR_SIZE;
+    mirrorFrame(re, im, (2 * Math.PI * ((MIRROR_CENTER * offset) % MIRROR_SIZE)) / MIRROR_SIZE, scratch);
+  });
+}
+
+/** In place, planar channels: each frame's packed spectrum goes through `edit(re, im, start)`. */
+function* stftSteps(channels, sliceFrames, edit) {
+  const { window, transform } = mirrorFft();
+  const n = MIRROR_SIZE, hop = MIRROR_HOP;
+  const length = channels[0]?.length ?? 0;
+  const re = new Float64Array(n), im = new Float64Array(n);
+  let frames = 0;
+  for (let pair = 0; pair < channels.length; pair += 2) {
+    const a = channels[pair], b = channels[pair + 1];
+    const tailA = new Float64Array(hop), tailB = new Float64Array(hop);
+    // Frames start one hop before the data so every sample sees two windows.
+    for (let start = -hop; start < length; start += hop) {
+      for (let m = 0; m < n; m++) {
+        const at = start + m;
+        const inside = at >= 0 && at < length;
+        re[m] = inside ? a[at] * window[m] : 0;
+        im[m] = inside && b ? b[at] * window[m] : 0;
+      }
+      transform(re, im);
+      edit(re, im, start);
+      for (let m = 0; m < n; m++) im[m] = -im[m];
+      transform(re, im);
+      // Samples [start, start + hop) now have both window contributions; the
+      // next frame reads from start + hop on, so they can be written in place.
+      for (let m = 0; m < hop; m++) {
+        const at = start + m;
+        const valueA = tailA[m] + (re[m] / n) * window[m];
+        const valueB = tailB[m] - (im[m] / n) * window[m];
+        tailA[m] = (re[m + hop] / n) * window[m + hop];
+        tailB[m] = -(im[m + hop] / n) * window[m + hop];
+        if (at >= 0 && at < length) {
+          a[at] = valueA;
+          if (b) b[at] = valueB;
+        }
+      }
+      if (++frames % sliceFrames === 0) yield;
+    }
+  }
+}
+
+/**
+ * Mirrors the 164 Hz–10 kHz band of planar audio in place (f -> 10172 Hz - f),
+ * the browser counterpart of veilcast_core::SpectrumMirror; like it, its own
+ * inverse up to window-edge rounding. Bass and treble outside the band pass
+ * through. `anchor` is the sample where the carrier phase is zero: the
+ * content start, so that both ends agree on it after any container offset.
+ * 48 kHz only. `channels` is an array of Float32Array.
+ */
+export function mirrorAudioSpectrum(channels, { anchor = 0 } = {}) {
+  if (!Number.isSafeInteger(anchor)) throw new Error("mirror anchor must be an integer");
+  for (const _ of mirrorSteps(channels, anchor, Infinity)) { /* runs to completion */ }
+}
+
+/** mirrorAudioSpectrum that yields to the event loop between slices; rejects with AbortError when `signal` aborts. */
+export async function mirrorAudioSpectrumAsync(channels, { anchor = 0, signal, sliceFrames = 64 } = {}) {
+  if (!Number.isSafeInteger(anchor)) throw new Error("mirror anchor must be an integer");
+  for (const _ of mirrorSteps(channels, anchor, sliceFrames)) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (signal?.aborted) throw new DOMException("mirror aborted", "AbortError");
+  }
+}
+
+/** Samples from the start of the sync chirp to the first content sample; veilcast_core::SYNC_CHIRP_LEAD. */
+export const SYNC_CHIRP_LEAD = 36000;
+let syncChirpCache = null;
+
+/** veilcast_core::sync_chirp: 0.5 s, 1→8 kHz, −40 dBFS, 10 ms fades, 48 kHz. */
+export function syncChirp() {
+  if (syncChirpCache) return syncChirpCache;
+  const length = 24000, fade = 480, duration = length / 48000;
+  return (syncChirpCache = Float32Array.from({ length }, (_, n) => {
+    const t = n / 48000;
+    const phase = 1000 * t + (7000 * t * t) / (2 * duration);
+    return 0.01 * Math.min(n / fade, (length - n) / fade, 1) * Math.sin(2 * Math.PI * phase);
+  }));
+}
+
+/**
+ * Locates the content start of a mirrored upload by the sync chirp in its
+ * intro, searching `searchMs` either side of `nominalStart`. `confidence` is
+ * the normalised correlation peak over its mean magnitude: a few hundred for
+ * a real chirp, near 1 when there is none.
+ */
+export function findAudioSync(channels, { sampleRate, nominalStart, searchMs = 100 }) {
+  if (sampleRate !== 48000) throw new Error("the sync chirp is defined at 48 kHz");
+  const chirp = syncChirp();
+  const length = channels[0]?.length ?? 0;
+  const mono = new Float64Array(length);
+  for (const data of channels) for (let i = 0; i < length; i++) mono[i] += data[i];
+  let chirpEnergy = 0;
+  for (const v of chirp) chirpEnergy += v * v;
+  const reach = Math.round((sampleRate * searchMs) / 1000);
+  const expected = nominalStart - SYNC_CHIRP_LEAD;
+  let best = nominalStart, bestScore = -Infinity, total = 0, candidates = 0;
+  for (let lag = -reach; lag <= reach; lag++) {
+    const at = expected + lag;
+    if (at < 0 || at + chirp.length > length) continue;
+    let dot = 0, energy = 0;
+    for (let n = 0; n < chirp.length; n++) { const v = mono[at + n]; dot += v * chirp[n]; energy += v * v; }
+    const score = energy > 0 ? dot / Math.sqrt(chirpEnergy * energy) : 0;
+    total += Math.abs(score);
+    candidates++;
+    if (score > bestScore) { bestScore = score; best = at + SYNC_CHIRP_LEAD; }
+  }
+  const mean = total / Math.max(1, candidates);
+  return { start: best, offset: best - nominalStart, confidence: mean > 0 ? bestScore / mean : 0 };
+}
+
 /**
  * Finds where the reversed blocks really start in a decoded track.
  *
@@ -298,8 +487,21 @@ export function reverseAudioBlocks(channels, { sampleRate, blockMs, start = 0 })
  * `nominalStart`, capped below half a block because the grid repeats every
  * block. `confidence` is the peak over the mean score: near 1 means there
  * was nothing to find (silence, or audio that was never reversed).
+ *
+ * `mirrored`: the reversed content was spectrum-mirrored afterwards. Its
+ * energy then sits near 10 kHz, every sample step is large and the boundary
+ * jumps no longer stand out, so the search runs on a copy of the first
+ * `mirrorProbeSeconds` mirrored back with the nominal anchor instead. An
+ * anchor that is off by the unknown offset only rotates the phase of the
+ * whole probe, which leaves the reversal's jumps where they are.
  */
-export function findAudioGrid(channels, { sampleRate, blockMs, nominalStart, searchMs = 100, maxBlocks = 400 }) {
+export function findAudioGrid(channels, { sampleRate, blockMs, nominalStart, searchMs = 100, maxBlocks = 400, mirrored = false, mirrorProbeSeconds = 30 }) {
+  if (mirrored) {
+    const end = Math.min(channels[0]?.length ?? 0, nominalStart + Math.round(sampleRate * mirrorProbeSeconds));
+    const probe = channels.map((data) => data.slice(0, end));
+    mirrorAudioSpectrum(probe, { anchor: nominalStart });
+    channels = probe;
+  }
   const block = audioBlockSamples(sampleRate, blockMs);
   const length = channels[0]?.length ?? 0;
   const reach = Math.min(Math.round((sampleRate * searchMs) / 1000), Math.floor((block - 1) / 2));

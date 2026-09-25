@@ -5,8 +5,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  encodeIntroHeader, encodeWav, findAudioGrid, parseIntroHeader, planGeometry, reverseAudioBlocks, seedFromText,
-  seededPermutation,
+  encodeIntroHeader, encodeWav, findAudioGrid, findAudioSync, mirrorAudioSpectrum, mirrorAudioSpectrumAsync,
+  parseIntroHeader, planGeometry, reverseAudioBlocks, seedFromText, seededPermutation, SYNC_CHIRP_LEAD, syncChirp,
 } from './veilcast.js';
 
 test('known-answer vectors match veilcast_core', () => {
@@ -75,7 +75,7 @@ test('plan geometry rejects unsafe integer dimensions and derived overflow', () 
 });
 
 test('intro header vectors match veilcast_core (tests/header.rs)', () => {
-  const sample = { width: 2560, height: 1370, tile: 40, margin: 0, invert: true, audioMs: 0 };
+  const sample = { width: 2560, height: 1370, tile: 40, margin: 0, invert: true, audioMs: 0, audioMirror: false };
   assert.equal(encodeIntroHeader(sample), '0125601370040001000017');
   assert.equal(
     encodeIntroHeader({ ...sample, seed: 0x88d44f40babc4fa2n }),
@@ -90,6 +90,18 @@ test('intro header vectors match veilcast_core (tests/header.rs)', () => {
     encodeIntroHeader({ width: 720, height: 1280, tile: 16, margin: 4, invert: false }),
     '0107201280016040000016',
   );
+  assert.equal(encodeIntroHeader({ ...sample, audioMs: 250, audioMirror: true }), '0125601370040003025091');
+  assert.equal(
+    encodeIntroHeader({ ...sample, audioMs: 250, audioMirror: true, seed: 0x88d44f40babc4fa2n }),
+    '012560137004000302500985959262365026294647',
+  );
+  assert.equal(
+    encodeIntroHeader({ width: 720, height: 1280, tile: 16, margin: 4, audioMs: 250, audioMirror: true }),
+    '0107201280016042025090',
+  );
+  assert.deepEqual(parseIntroHeader('0107201280016042025090'), {
+    width: 720, height: 1280, tile: 16, margin: 4, invert: false, audioMs: 250, audioMirror: true, seed: null,
+  });
   assert.deepEqual(parseIntroHeader('0125601370040001000017'), { ...sample, seed: null });
   assert.deepEqual(parseIntroHeader('012560137004000102500985959262365026294691'), {
     ...sample,
@@ -99,7 +111,8 @@ test('intro header vectors match veilcast_core (tests/header.rs)', () => {
   for (const header of [
     { ...sample, seed: 2n ** 64n - 1n },
     { ...sample, seed: 0n, invert: false },
-    { width: 1, height: 9999, tile: 998, margin: 98, invert: true, audioMs: 9999, seed: 1n },
+    { width: 1, height: 9999, tile: 998, margin: 98, invert: true, audioMs: 9999, audioMirror: true, seed: 1n },
+    { ...sample, invert: false, audioMs: 50, audioMirror: true, seed: null },
   ]) {
     assert.deepEqual(parseIntroHeader(encodeIntroHeader(header)), header);
   }
@@ -112,6 +125,8 @@ test('intro header parser rejects the same strings as Rust', () => {
   assert.throws(() => parseIntroHeader('0125601370040001000018'), /checksum/);
   assert.throws(() => parseIntroHeader('0225601370040001000009'), /unknown header version 2/);
   assert.throws(() => parseIntroHeader('0125601370040002000026'), /flags/);
+  assert.throws(() => parseIntroHeader('0125601370040004025003'), /flags/);
+  assert.throws(() => encodeIntroHeader({ width: 1, height: 1, tile: 40, margin: 0, audioMirror: true }), /flags/);
   assert.throws(() => parseIntroHeader('012560137004000100001844674407370955161641'), /seed/);
   assert.throws(() => encodeIntroHeader({ width: 1, height: 1, tile: 40, margin: 0, audioMs: 10000 }), /audio/);
   assert.throws(() => encodeIntroHeader({ width: 0, height: 1, tile: 40, margin: 0 }), /width/);
@@ -119,11 +134,11 @@ test('intro header parser rejects the same strings as Rust', () => {
 });
 
 test('legacy 18/38-digit intro headers from earlier releases remain readable', () => {
-  const sample = { width: 2560, height: 1370, tile: 40, margin: 0, invert: true, audioMs: 0, seed: null };
+  const sample = { width: 2560, height: 1370, tile: 40, margin: 0, invert: true, audioMs: 0, audioMirror: false, seed: null };
   assert.deepEqual(parseIntroHeader('012560137004000145'), sample);
   assert.deepEqual(parseIntroHeader('01256013700400010985959262365026294684'), { ...sample, seed: 0x88d44f40babc4fa2n });
   assert.deepEqual(parseIntroHeader('010720128001604088'), {
-    width: 720, height: 1280, tile: 16, margin: 4, invert: false, audioMs: 0, seed: null,
+    width: 720, height: 1280, tile: 16, margin: 4, invert: false, audioMs: 0, audioMirror: false, seed: null,
   });
   assert.equal(encodeIntroHeader(parseIntroHeader('012560137004000145')), '0125601370040001000017');
 });
@@ -185,6 +200,107 @@ test('the block grid is found where the reversal left its jumps', () => {
 
   const silent = findAudioGrid([new Float32Array(rate * 3)], { sampleRate: rate, blockMs: 250, nominalStart: rate });
   assert.equal(silent.confidence, 0, 'silence has no grid to find');
+});
+
+const MIRROR_CARRIER_HZ = 10171.875;
+const tone = (hz, length, from = 0) => Float32Array.from({ length }, (_, n) => (n < from ? 0 : 0.5 * Math.cos((2 * Math.PI * hz * (n - from)) / 48000)));
+const snrDb = (reference, actual) => {
+  let signal = 0, error = 0;
+  for (let i = 0; i < reference.length; i++) { signal += reference[i] ** 2; error += (reference[i] - actual[i]) ** 2; }
+  return 10 * Math.log10(signal / error);
+};
+const noise = (length, seed) => {
+  let state = seed;
+  return Float32Array.from({ length }, () => ((state = (state * 1103515245 + 12345) % 2147483648) / 2147483648 - 0.5) * 0.5);
+};
+
+test('the spectrum mirror moves a tone to carrier minus frequency, phase zero at the anchor (tests/spectrum.rs)', () => {
+  const data = tone(1000, 96000);
+  mirrorAudioSpectrum([data]);
+  const expected = tone(MIRROR_CARRIER_HZ - 1000, 96000);
+  let worst = 0;
+  for (let n = 20000; n < 76000; n++) worst = Math.max(worst, Math.abs(data[n] - expected[n]));
+  assert.ok(worst < 1e-3, `worst deviation ${worst}`);
+
+  // The anchor, not the buffer start, is where the carrier phase is zero.
+  const late = tone(1000, 96000, 1234);
+  mirrorAudioSpectrum([late], { anchor: 1234 });
+  const lateExpected = tone(MIRROR_CARRIER_HZ - 1000, 96000, 1234);
+  worst = 0;
+  for (let n = 20000; n < 76000; n++) worst = Math.max(worst, Math.abs(late[n] - lateExpected[n]));
+  assert.ok(worst < 1e-3, `anchored worst deviation ${worst}`);
+
+  for (const hz of [60, 14000]) {
+    const outside = tone(hz, 96000);
+    mirrorAudioSpectrum([outside]);
+    assert.ok(snrDb(tone(hz, 96000).subarray(20000, 76000), outside.subarray(20000, 76000)) > 60, `${hz} Hz passes through`);
+  }
+});
+
+test('mirroring twice restores, also on another frame grid, and the async form matches', async () => {
+  const left = noise(120000, 1), right = noise(120000, 2), third = noise(120000, 3);
+  const channels = [left.slice(), right.slice(), third.slice()];
+  mirrorAudioSpectrum(channels);
+  assert.ok(snrDb(left, channels[0]) < 1, 'the mirrored signal must be unlike the input');
+  const viaAsync = [left.slice(), right.slice(), third.slice()];
+  await mirrorAudioSpectrumAsync(viaAsync, { sliceFrames: 3 });
+  for (const [index, data] of viaAsync.entries()) assert.deepEqual(data, channels[index], `async channel ${index}`);
+  // A restore whose buffer starts 777 samples earlier, anchored at the content.
+  const shifted = channels.map((data) => { const out = new Float32Array(data.length + 777); out.set(data, 777); return out; });
+  mirrorAudioSpectrum(shifted, { anchor: 777 });
+  mirrorAudioSpectrum(channels);
+  for (const [index, original] of [left, right, third].entries()) {
+    assert.ok(snrDb(original, channels[index]) > 30, `channel ${index} same grid`);
+    assert.ok(snrDb(original, shifted[index].subarray(777)) > 28, `channel ${index} shifted grid`);
+  }
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(mirrorAudioSpectrumAsync([noise(48000, 4)], { signal: controller.signal, sliceFrames: 1 }), { name: 'AbortError' });
+});
+
+test('the grid of a mirrored upload is found on the mirrored-back copy; undoing both restores', () => {
+  const rate = 48000, priming = 1024, length = priming + rate * 6;
+  let state = 99;
+  const random = () => ((state = (state * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const partials = Array.from({ length: 24 }, () => ({ f: 200 + random() * 2000, p: random() * 6.283, a: random() }));
+  const original = Float32Array.from({ length: rate * 5 }, (_, i) => {
+    let v = 0;
+    for (const { f, p, a } of partials) v += a * Math.sin((6.283185 * f * i) / rate + p) * (0.6 + 0.4 * Math.sin((i / rate) * 3 + p));
+    return v / 12;
+  });
+  // Scrambled as the desktop does: reverse, then mirror, anchored at the content start.
+  const content = original.slice();
+  reverseAudioBlocks([content], { sampleRate: rate, blockMs: 250 });
+  mirrorAudioSpectrum([content]);
+  const upload = new Float32Array(length);
+  upload.set(content, priming + rate);
+  const grid = findAudioGrid([upload], { sampleRate: rate, blockMs: 250, nominalStart: rate, mirrored: true });
+  assert.ok(Math.abs(grid.offset - priming) <= 1, `offset ${grid.offset}`);
+  assert.ok(grid.confidence > 3, `confidence ${grid.confidence}`);
+  mirrorAudioSpectrum([upload], { anchor: grid.start });
+  reverseAudioBlocks([upload], { sampleRate: rate, blockMs: 250, start: grid.start });
+  assert.ok(snrDb(original, upload.subarray(grid.start, grid.start + original.length)) > 30);
+});
+
+test('the sync chirp matches veilcast_core and pins the content start through an offset', () => {
+  // tests/audio.rs pins the same samples.
+  const chirp = syncChirp();
+  assert.equal(chirp.length, 24000);
+  assert.equal(SYNC_CHIRP_LEAD, 36000);
+  for (const [index, expected] of [[0, 0], [240, 0.0044550328], [1000, -0.00722364], [23999, -0.000018042]]) {
+    assert.ok(Math.abs(chirp[index] - expected) < 1e-7, `sample ${index}: ${chirp[index]}`);
+  }
+  // Intro second with the chirp, then loud noise; decoded 1024 samples late.
+  const rate = 48000, priming = 1024;
+  const track = new Float32Array(priming + rate * 3);
+  track.set(chirp, priming + rate - SYNC_CHIRP_LEAD);
+  track.set(noise(rate * 2, 5).map((v) => v * 3), priming + rate);
+  const found = findAudioSync([track, track], { sampleRate: rate, nominalStart: rate });
+  assert.equal(found.offset, priming);
+  assert.equal(found.start, priming + rate);
+  assert.ok(found.confidence > 100, `confidence ${found.confidence}`);
+  const none = findAudioSync([noise(rate * 3, 6)], { sampleRate: rate, nominalStart: rate });
+  assert.ok(none.confidence < 20, `no chirp, confidence ${none.confidence}`);
 });
 
 test('WAV output is 16-bit PCM shifted onto the media timeline', () => {
