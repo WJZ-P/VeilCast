@@ -90,11 +90,6 @@ fn rejects_malformed_strings() {
         IntroHeader::parse("012560137004000100001").unwrap_err(),
         HeaderError::Length(21)
     );
-    // The previous 18-digit layout (no audio field) is not accepted.
-    assert_eq!(
-        IntroHeader::parse("012560137004000145").unwrap_err(),
-        HeaderError::Length(18)
-    );
     assert_eq!(
         IntroHeader::parse("012560137004000100001x").unwrap_err(),
         HeaderError::NotDigits
@@ -118,6 +113,51 @@ fn rejects_malformed_strings() {
         IntroHeader::parse("012560137004000100001844674407370955161641").unwrap_err(),
         HeaderError::Field("seed")
     );
+}
+
+#[test]
+fn legacy_headers_without_audio_remain_readable() {
+    assert_eq!(IntroHeader::parse("012560137004000145").unwrap(), sample());
+    let with_seed = IntroHeader {
+        seed: Some(0x88d4_4f40_babc_4fa2),
+        ..sample()
+    };
+    assert_eq!(
+        IntroHeader::parse("01256013700400010985959262365026294684").unwrap(),
+        with_seed
+    );
+    let portrait = IntroHeader {
+        width: 720,
+        height: 1280,
+        tile: 16,
+        margin: 4,
+        invert: false,
+        audio_ms: 0,
+        seed: None,
+    };
+    assert_eq!(IntroHeader::parse("010720128001604088").unwrap(), portrait);
+    assert_eq!(
+        IntroHeader::parse("012560137004000145")
+            .unwrap()
+            .encode()
+            .unwrap(),
+        "0125601370040001000017"
+    );
+}
+
+#[test]
+fn legacy_headers_still_require_checksum_version_flags_and_seed_bounds() {
+    for (text, expected) in [
+        ("012560137004000146", HeaderError::Checksum),
+        ("022560137004000148", HeaderError::Version(2)),
+        ("012560137004000246", HeaderError::Field("flags")),
+        (
+            "01256013700400011844674407370955161648",
+            HeaderError::Field("seed"),
+        ),
+    ] {
+        assert_eq!(IntroHeader::parse(text).unwrap_err(), expected);
+    }
 }
 
 #[test]

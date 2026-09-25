@@ -106,8 +106,8 @@ test('intro header vectors match veilcast_core (tests/header.rs)', () => {
 });
 
 test('intro header parser rejects the same strings as Rust', () => {
-  assert.throws(() => parseIntroHeader('012560137004000100001'), /22 or 42 digits, got 21/);
-  assert.throws(() => parseIntroHeader('012560137004000145'), /22 or 42 digits, got 18/);
+  assert.throws(() => parseIntroHeader('012560137004000100001'), /18, 22, 38 or 42 digits, got 21/);
+  assert.throws(() => parseIntroHeader('01256013700400014'), /18, 22, 38 or 42 digits, got 17/);
   assert.throws(() => parseIntroHeader('012560137004000100001x'), /only decimal digits/);
   assert.throws(() => parseIntroHeader('0125601370040001000018'), /checksum/);
   assert.throws(() => parseIntroHeader('0225601370040001000009'), /unknown header version 2/);
@@ -116,6 +116,23 @@ test('intro header parser rejects the same strings as Rust', () => {
   assert.throws(() => encodeIntroHeader({ width: 1, height: 1, tile: 40, margin: 0, audioMs: 10000 }), /audio/);
   assert.throws(() => encodeIntroHeader({ width: 0, height: 1, tile: 40, margin: 0 }), /width/);
   assert.throws(() => encodeIntroHeader({ width: 1, height: 1, tile: 41, margin: 0 }), /tile/);
+});
+
+test('legacy 18/38-digit intro headers from earlier releases remain readable', () => {
+  const sample = { width: 2560, height: 1370, tile: 40, margin: 0, invert: true, audioMs: 0, seed: null };
+  assert.deepEqual(parseIntroHeader('012560137004000145'), sample);
+  assert.deepEqual(parseIntroHeader('01256013700400010985959262365026294684'), { ...sample, seed: 0x88d44f40babc4fa2n });
+  assert.deepEqual(parseIntroHeader('010720128001604088'), {
+    width: 720, height: 1280, tile: 16, margin: 4, invert: false, audioMs: 0, seed: null,
+  });
+  assert.equal(encodeIntroHeader(parseIntroHeader('012560137004000145')), '0125601370040001000017');
+});
+
+test('legacy headers still reject bad checksums, versions, flags and oversized seeds', () => {
+  assert.throws(() => parseIntroHeader('012560137004000146'), /checksum/);
+  assert.throws(() => parseIntroHeader('022560137004000148'), /version/);
+  assert.throws(() => parseIntroHeader('012560137004000246'), /flags/);
+  assert.throws(() => parseIntroHeader('01256013700400011844674407370955161648'), /seed/);
 });
 
 test('audio blocks reverse from the start sample and leave the rest alone', () => {

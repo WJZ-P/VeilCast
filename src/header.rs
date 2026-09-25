@@ -25,8 +25,9 @@ pub const HEADER_VERSION: u8 = 1;
 /// Total length is 22 without a seed and 42 with one; the length alone says
 /// which. The seed is the value produced by [`crate::seed_from_text`], never
 /// the text the user typed. Padding is not transmitted: both ends derive it
-/// from the source size and tile. Any layout change bumps the version, and
-/// readers must reject versions they do not know.
+/// from the source size and tile. Historical version-1 codes were 18/38 digits
+/// without the audio field; readers accept those as audio_ms=0. Encoding always
+/// uses the current 22/42-digit layout. Future layout changes must bump the version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IntroHeader {
     pub width: usize,
@@ -42,7 +43,7 @@ pub struct IntroHeader {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HeaderError {
-    /// Not 22 or 42 characters.
+    /// Neither a current (22/42) nor historical (18/38) version-1 length.
     Length(usize),
     NotDigits,
     /// A version this crate does not understand.
@@ -55,7 +56,9 @@ pub enum HeaderError {
 impl fmt::Display for HeaderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Length(actual) => write!(f, "header must be 22 or 42 digits, got {actual}"),
+            Self::Length(actual) => {
+                write!(f, "header must be 18, 22, 38 or 42 digits, got {actual}")
+            }
             Self::NotDigits => write!(f, "header must contain only decimal digits"),
             Self::Version(version) => write!(f, "unknown header version {version}"),
             Self::Checksum => write!(f, "header checksum mismatch"),
@@ -93,7 +96,8 @@ impl IntroHeader {
         if !text.bytes().all(|b| b.is_ascii_digit()) {
             return Err(HeaderError::NotDigits);
         }
-        if text.len() != WITHOUT_SEED && text.len() != WITH_SEED {
+        let legacy = text.len() == 18 || text.len() == 38;
+        if !legacy && text.len() != WITHOUT_SEED && text.len() != WITH_SEED {
             return Err(HeaderError::Length(text.len()));
         }
         let (payload, check) = text.split_at(text.len() - 2);
@@ -108,8 +112,9 @@ impl IntroHeader {
         if flags > 1 {
             return Err(HeaderError::Field("flags"));
         }
-        let seed = if text.len() == WITH_SEED {
-            Some(field::<u64>(&text[20..40], "seed")?)
+        let seed = if text.len() == 38 || text.len() == WITH_SEED {
+            let offset = if legacy { 16 } else { 20 };
+            Some(field::<u64>(&text[offset..offset + 20], "seed")?)
         } else {
             None
         };
@@ -119,7 +124,11 @@ impl IntroHeader {
             tile: field(&text[10..13], "tile")?,
             margin: field(&text[13..15], "margin")?,
             invert: flags == 1,
-            audio_ms: field(&text[16..20], "audio")?,
+            audio_ms: if legacy {
+                0
+            } else {
+                field(&text[16..20], "audio")?
+            },
             seed,
         };
         header.validate()?;

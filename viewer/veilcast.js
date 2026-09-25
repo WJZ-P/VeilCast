@@ -108,18 +108,22 @@ export function encodeIntroHeader({ width, height, tile, margin, invert = false,
   return digits + headerChecksum(digits);
 }
 
-/** Parses a digit string produced by encodeIntroHeader / IntroHeader::encode; throws on anything invalid. */
+/** Parses current and historical version-1 digit strings; validates the original checksum before interpreting fields. */
 export function parseIntroHeader(text) {
   if (typeof text !== "string" || !/^[0-9]*$/.test(text)) throw new Error("header must contain only decimal digits");
-  if (text.length !== 22 && text.length !== 42) throw new Error(`header must be 22 or 42 digits, got ${text.length}`);
+  // Early version-1 videos omitted audio(4). They were already in use when
+  // the field was added without a version bump; keep those 18/38-digit codes readable.
+  const legacy = text.length === 18 || text.length === 38;
+  if (!legacy && text.length !== 22 && text.length !== 42) throw new Error(`header must be 18, 22, 38 or 42 digits, got ${text.length}`);
   const version = Number(text.slice(0, 2));
   if (version !== HEADER_VERSION) throw new Error(`unknown header version ${version}`);
   if (text.slice(-2) !== headerChecksum(text.slice(0, -2))) throw new Error("header checksum mismatch");
   const flags = Number(text[15]);
   if (flags > 1) throw new Error("header field flags is out of range");
   let seed = null;
-  if (text.length === 42) {
-    seed = BigInt(text.slice(20, 40));
+  if (text.length === 38 || text.length === 42) {
+    const seedOffset = legacy ? 16 : 20;
+    seed = BigInt(text.slice(seedOffset, seedOffset + 20));
     if (seed > MASK64) throw new Error("header field seed is out of range");
   }
   const header = {
@@ -128,7 +132,7 @@ export function parseIntroHeader(text) {
     tile: Number(text.slice(10, 13)),
     margin: Number(text.slice(13, 15)),
     invert: flags === 1,
-    audioMs: Number(text.slice(16, 20)),
+    audioMs: legacy ? 0 : Number(text.slice(16, 20)),
     seed,
   };
   validateHeaderFields(header);
