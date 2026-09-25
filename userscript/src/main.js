@@ -1,11 +1,15 @@
 /** Browser integration only. The renderer and desktop defaults are injected by the build. */
-export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, pageSettings, rememberPageSettings, forgetPageSettings, storage, menu, iconUrl }) {
+export function installUserscript({ createRestorer, scanIntro, decodeQr, createIntroReader, audio, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, pageSettings, rememberPageSettings, forgetPageSettings, storage, menu, iconUrl, diagnostics, introVideoState, scriptVersion = 'unknown' }) {
   const SELECTOR = '.bpx-player-primary-area video';
   const TOOLBAR_SELECTOR = '#arc_toolbar_report .video-toolbar-left-main';
   const STORAGE_KEY = 'veilcast.bilibili.settings.v1';
   // Per-video memory, keyed by BVID and part: what the intro QR said, plus
   // whatever the viewer corrected by hand on that page.
   const PAGES_KEY = 'veilcast.bilibili.pages.v1';
+  const log = (event, details = {}, level = 'info') => diagnostics?.log(event, details, level);
+  const mediaState = (video) => introVideoState?.(video) ?? { currentTime: video.currentTime, readyState: video.readyState };
+  let mountSequence = 0;
+  log('install.start', { scriptVersion, documentReady: document.readyState, documentHidden: document.hidden, decoderAvailable: typeof decodeQr === 'function' });
   let settings;
   let settingsNotice = '';
   let enabled = false;
@@ -63,6 +67,9 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
   enabled = autoEnabled();
 
   function mount(video, toolbar) {
+    const mountId = ++mountSequence;
+    const mountedPageKey = pageKey;
+    log('player.mount', { mountId, candidates: document.querySelectorAll(SELECTOR).length, ...mediaState(video) });
     const area = video.closest('.bpx-player-primary-area');
     const wrapper = video.parentElement;
     const listeners = new AbortController();
@@ -105,14 +112,20 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
         header, .row { display: flex; align-items: center; gap: 8px; }
         header { justify-content: space-between; margin-bottom: 10px; }
         header strong { font-size: 14px; }
+        #build-version { font-size: 11px; font-weight: normal; color: #95a7c6; }
         label { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; margin-bottom: 10px; }
         input { width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid #46516b; border-radius: 6px; background: #0c1220; }
         .check { flex-direction: row; align-items: center; gap: 8px; }
         .check input { width: 16px; height: 16px; margin: 0; accent-color: #00aeec; }
-        #from-description { padding: 4px 8px; margin-bottom: 10px; font-size: 12px; }
+        #from-description, #scan-intro, #copy-diagnostics { padding: 4px 8px; margin-bottom: 10px; font-size: 12px; }
+        #intro-status { margin: 0 0 10px; }
+        #log-details { margin-top: 10px; }
+        #log-details summary { cursor: pointer; }
+        #diagnostic-log { width: 100%; height: 160px; margin-top: 6px; background: #0c1220; color: #b7c9e9;
+          border: 1px solid #46516b; border-radius: 6px; font: 11px/1.4 monospace; resize: vertical; }
         p { margin: 8px 0 0; color: #b4c1d8; overflow-wrap: anywhere; }
         #toggle { flex: 1; background: #245b9c; }
-        #status[data-error=true] { color: #ffb3b3; }
+        [role=status][data-error=true] { color: #ffb3b3; }
         small { display: block; color: #95a7c6; margin-bottom: 10px; }
       </style>
       <button id="open" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="panel">
@@ -121,7 +134,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
       </button>
       <dialog id="panel" aria-labelledby="panel-title">
       <form>
-        <header><strong id="panel-title">VeilCast · 画面还原</strong><button id="close" type="button" aria-label="关闭设置">关闭</button></header>
+        <header><strong id="panel-title">VeilCast · 画面还原 <span id="build-version"></span></strong><button id="close" type="button" aria-label="关闭设置">关闭</button></header>
         <label>seed（数字或文字）<input name="seed" type="text" maxlength="4096" autocomplete="off" spellcheck="false"></label>
         <div class="row">
           <label>tile / tail（偶数）<input name="tile" type="number" min="2" max="16384" step="2" required></label>
@@ -132,16 +145,24 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
           <label>原始高度<input name="height" type="number" min="1" max="16384" step="1" required></label>
         </div>
         <small>填写加密前的尺寸，而非当前播放清晰度；五项参数需与加密端一致。</small>
-        <label>音频块长 ms（0 = 不处理音频）<input name="audioMs" type="number" min="0" max="9999" step="50" required></label>
+        <label>音频块长 ms（0 = 不处理音频）<input name="audioMs" type="number" min="0" max="9999" step="1" required></label>
         <label class="check"><input name="invert" type="checkbox">反色（与加密端保持一致）</label>
         <label class="check"><input name="autoIntro" type="checkbox">自动读取片头二维码并启用还原</label>
         <button id="from-description" type="button">读取简介参数</button>
+        <button id="scan-intro" type="button">识别当前二维码</button>
+        <p id="intro-status" role="status" aria-live="polite"></p>
         <div class="row"><button id="toggle" type="button">启用还原</button><button type="submit">应用参数</button><button id="reset" type="button">默认</button></div>
         <p id="status" role="status" aria-live="polite"></p>
         <p id="audio-status" role="status" aria-live="polite" hidden></p>
-        <small>只处理画面；声音、弹幕和播放控制仍由原播放器负责。</small>
+        <button id="copy-diagnostics" type="button">复制诊断日志</button>
+        <p id="log-status" role="status" aria-live="polite"></p>
+        <details id="log-details"><summary>查看诊断日志（本地，已脱敏）</summary>
+          <textarea id="diagnostic-log" readonly spellcheck="false" aria-label="VeilCast 诊断日志"></textarea>
+        </details>
+        <small>音频块长大于 0 时一并还原声音；弹幕和播放控制保留。</small>
       </form></dialog>`;
     const brandIcon = shadow.getElementById('brand-icon');
+    shadow.getElementById('build-version').textContent = `v${scriptVersion}`;
     if (iconUrl) brandIcon.src = iconUrl;
     else brandIcon.hidden = true;
     toolbar.after(ui);
@@ -199,19 +220,45 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
     // Read it while the playhead is still inside that window, then apply and
     // switch the restorer on: only our own header parses, so nothing happens
     // on ordinary videos.
-    let introScan = null;
-    let introRead = false;
-    async function readIntroHeader() {
-      if (dead || introRead || !settings.autoIntro || !scanIntro || !decodeQr) return;
-      if (video.currentTime > 1.5 || video.readyState < 2) return;
-      introScan?.abort();
-      introScan = new AbortController();
-      const signal = AbortSignal.any ? AbortSignal.any([introScan.signal, listeners.signal]) : introScan.signal;
-      let header;
-      try { header = await scanIntro(video, { decode: decodeQr, signal }); }
-      catch { return; }
-      if (!header || dead) return;
-      introRead = true;
+    let introReader = null;
+    const scanButton = shadow.getElementById('scan-intro');
+    function introReport(state, error) {
+      const label = shadow.getElementById('intro-status');
+      ui.dataset.intro = state;
+      label.dataset.error = String(state === 'error');
+      scanButton.textContent = state === 'scanning' ? '识别中…（点击重试）' : '识别当前二维码';
+      label.textContent = {
+        off: '二维码自动识别已关闭，可手动识别当前画面。',
+        waiting: '二维码：等待片头画面；从中途进入可拖回开头。',
+        scanning: '二维码：等待视频帧并识别中…',
+        found: '二维码：参数已读取并应用（含音频块长）。',
+        missing: '二维码：本轮未识别到有效参数。可暂停在二维码处，点击「识别当前二维码」重试。',
+        error: `二维码读取或应用失败：${error?.message ?? error ?? '未知原因'}。若含跨域限制提示，请保留错误信息。`,
+      }[state];
+    }
+    function initializeIntroReader() {
+      if (introReader) return true;
+      const components = { createIntroReader: typeof createIntroReader, scanIntro: typeof scanIntro, decodeQr: typeof decodeQr };
+      log('qr.reader-init', { mountId, ...components, ...mediaState(video) });
+      try {
+        if (Object.values(components).some((type) => type !== 'function')) throw new Error('二维码识别组件未加载完整');
+        introReader = createIntroReader(video, {
+          scan: scanIntro, decode: decodeQr, enabled: () => settings.autoIntro,
+          isCurrent: () => !dead && video.isConnected && videoPageKey(location.href) === mountedPageKey,
+          onHeader: applyIntroHeader, report: introReport, signal: listeners.signal,
+          trace: (event, details) => log(`qr.${event}`, { mountId, documentHidden: document.hidden, ...mediaState(video), ...details },
+            event.includes('error') || event.includes('failed') ? 'error' : event.includes('rejected') || event.includes('discarded') ? 'warn' : 'info'),
+        });
+        log('qr.reader-ready', { mountId });
+        return true;
+      } catch (error) {
+        log('qr.reader-init-failed', { mountId, error }, 'error');
+        introReport('error', error);
+        return false;
+      }
+    }
+    function applyIntroHeader(header) {
+      if (dead) return false;
       fill({
         ...settings,
         width: header.width,
@@ -222,21 +269,26 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
         audioMs: header.audioMs,
         seed: header.seed === null ? settings.seed : String(header.seed),
       });
-      if (!apply()) return;
+      if (!apply()) { log('qr.settings-rejected', { mountId }, 'warn'); return false; }
       if (!enabled) {
         enabled = true;
         startRenderer();
         updateToggle();
       }
+      if (!enabled) { log('qr.renderer-not-enabled', { mountId }, 'warn'); return false; }
       rememberPage(settings, 'intro');
       message(header.seed === null
         ? '已从片头二维码读取尺寸、tile、margin 和反色（片头不含 seed，沿用当前 seed）并启用还原，参数已记住。'
         : '已从片头二维码读取全部参数（含 seed）并启用还原，参数已记住。');
+      return true;
     }
     const audioStatus = shadow.getElementById('audio-status');
     let audioRestorer = null;
+    let audioSource = '';
     function audioReport(state, text) {
+      log('audio.state', { mountId, state, message: text }, state === 'error' ? 'error' : 'info');
       ui.dataset.audio = state;
+      if (audioRestorer) ui.dataset.audioMode = audioRestorer.mode;
       audioStatus.textContent = text;
       audioStatus.hidden = !text;
       audioStatus.dataset.error = String(state === 'error');
@@ -244,25 +296,39 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
     /** Keeps the audio restorer in line with `enabled` and the block length. */
     function syncAudio() {
       const wanted = !dead && enabled && settings.audioMs > 0 && Boolean(audio);
-      if (audioRestorer && (!wanted || audioRestorer.blockMs !== settings.audioMs)) {
+      const source = video.currentSrc || video.src || '';
+      if (audioRestorer && (audioRestorer.blockMs !== settings.audioMs || audioSource !== source)) {
         audioRestorer.destroy();
         audioRestorer = null;
       }
       if (!wanted) {
+        audioRestorer?.disable();
         audioReport('off', '');
         delete ui.dataset.audioMode;
         return;
       }
-      if (audioRestorer) return;
       const since = navigatedAt;
-      audioRestorer = audio.createAudioRestorer({
-        video,
-        blockMs: settings.audioMs,
-        host: shadow,
-        locate: (signal) => audio.locateAudio(video, audioUrls, { since, signal }),
-        report: audioReport,
-      });
-      ui.dataset.audioMode = audioRestorer.mode;
+      try {
+        if (audioRestorer) {
+          audioRestorer.enable();
+          ui.dataset.audioMode = audioRestorer.mode;
+          return;
+        }
+        audioSource = source;
+        audioRestorer = audio.createAudioRestorer({
+          video,
+          blockMs: settings.audioMs,
+          host: shadow,
+          locate: (signal) => audio.locateAudio(video, audioUrls, { since, signal }),
+          report: audioReport,
+          trace: (event, details) => log(`audio.${event}`, { mountId, ...details },
+            /error|rejected/.test(event) ? 'warn' : 'info'),
+        });
+        ui.dataset.audioMode = audioRestorer.mode;
+      } catch (error) {
+        log('audio.init-failed', { mountId, error }, 'error');
+        audioReport('error', `音频初始化失败：${error.message ?? error}`);
+      }
     }
     function updateToggle() {
       toggle.textContent = enabled ? '停用还原' : '启用还原';
@@ -283,6 +349,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
       hasDrawn = false;
     }
     function fail(error) {
+      log('renderer.error', { mountId, error }, 'error');
       enabled = false;
       stopRenderer();
       updateToggle();
@@ -342,14 +409,19 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
       syncAudio();
     }
     function apply() {
-      if (!form.reportValidity()) return false;
+      if (!form.reportValidity()) {
+        log('settings.form-invalid', { mountId, fields: [...form.elements]
+          .filter((element) => element.validity && !element.validity.valid).map((element) => element.name) }, 'warn');
+        return false;
+      }
+      const previousAutoIntro = settings.autoIntro;
       try {
         const values = Object.fromEntries(new FormData(form));
         values.invert = form.elements.namedItem('invert').checked;
         values.autoIntro = form.elements.namedItem('autoIntro').checked;
         values.audioMs = form.elements.namedItem('audioMs').value;
         settings = validateSettings(values, defaults);
-      } catch (error) { message(error.message, true); return false; }
+      } catch (error) { log('settings.validation-failed', { mountId, error }, 'warn'); message(error.message, true); return false; }
       settingsNotice = '';
       try { storage.set(STORAGE_KEY, settings); }
       catch { settingsNotice = '设置保存失败，本次会话仍有效'; }
@@ -359,6 +431,10 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
       else {
         message(`参数已应用；还原处于关闭状态。${settingsNotice}`);
         syncAudio();
+      }
+      if (settings.autoIntro !== previousAutoIntro) {
+        introReader?.reset();
+        void introReader?.request();
       }
       return true;
     }
@@ -387,6 +463,40 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
       } catch (error) { message(error.message, true); }
     });
     on(form, 'submit', (event) => { event.preventDefault(); apply(); });
+    on(scanButton, 'click', async () => {
+      log('qr.manual-click', { mountId, readerReady: Boolean(introReader), dead,
+        pageMatches: videoPageKey(location.href) === mountedPageKey, ...mediaState(video) });
+      // A click must respond even if a different component failed during mount.
+      introReport('scanning');
+      if (!initializeIntroReader()) return;
+      try {
+        const applied = await introReader.request({ manual: true });
+        log('qr.manual-complete', { mountId, applied, state: ui.dataset.intro });
+        if (!applied && ui.dataset.intro === 'scanning') introReport('error', new Error('识别任务提前结束，请复制诊断日志查看原因。'));
+      } catch (error) {
+        log('qr.manual-failed', { mountId, error }, 'error');
+        introReport('error', error);
+      }
+    });
+    const logDetails = shadow.getElementById('log-details');
+    const logText = shadow.getElementById('diagnostic-log');
+    const readLogs = () => diagnostics?.dump() ?? `VeilCast ${scriptVersion}: 诊断组件未加载，请检查控制台。`;
+    on(logDetails, 'toggle', () => { if (logDetails.open) logText.value = readLogs(); });
+    on(shadow.getElementById('copy-diagnostics'), 'click', async () => {
+      log('diagnostics.copy', { mountId });
+      const text = readLogs();
+      logText.value = text;
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('Clipboard API not available');
+        await navigator.clipboard.writeText(text);
+        shadow.getElementById('log-status').textContent = '诊断日志已复制。';
+      } catch {
+        logDetails.open = true;
+        logText.focus();
+        logText.select();
+        shadow.getElementById('log-status').textContent = '请按 Ctrl+C 复制下方已选中的日志。';
+      }
+    });
     on(toggle, 'click', () => {
       if (enabled) {
         enabled = false;
@@ -405,24 +515,23 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
       apply();
       // "Default" also drops this video's memory, so it stops restoring by itself.
       forgetPage();
-      introRead = false;
+      introReader?.reset();
     });
     // Do not let the player's shortcuts intercept typing or buttons in the panel.
     for (const name of ['keydown', 'keyup', 'keypress', 'pointerdown', 'click', 'dblclick']) {
       on(ui, name, (event) => event.stopPropagation());
     }
     for (const name of ['play', 'playing', 'loadeddata', 'seeked']) on(video, name, render);
-    // Seeking back into the first second is a second chance at the header,
-    // which is what happens when a viewer joins late and then rewinds.
-    for (const name of ['loadeddata', 'play', 'seeked']) on(video, name, () => { readIntroHeader(); });
-    if (video.readyState >= 2) readIntroHeader();
     for (const name of ['pause', 'ended']) on(video, name, () => { cancelFrame(); render(); });
     for (const name of ['loadstart', 'emptied']) on(video, name, () => {
+      audioRestorer?.destroy();
+      audioRestorer = null;
       cancelFrame();
       hasDrawn = false;
       canvas.style.visibility = 'hidden';
       if (enabled) message('视频源切换中…');
     });
+    on(video, 'loadeddata', syncAudio);
     on(video, 'seeking', () => { canvas.style.visibility = 'hidden'; });
     for (const name of ['loadedmetadata', 'resize']) on(video, name, () => {
       hasDrawn = false;
@@ -446,6 +555,10 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
     updateToggle();
     message(settingsNotice || '还原未启用；请核对 seed、tile、margin 和原始宽高，再点击「启用还原」。', Boolean(settingsNotice));
     if (settingsNotice) open();
+    log('ui.handlers-ready', { mountId, autoIntro: settings.autoIntro, restorationEnabled: enabled });
+    // Bind QR actions before starting optional media components. A synchronous
+    // audio initialization failure must not leave a visible but inert QR button.
+    initializeIntroReader();
     if (enabled) startRenderer();
     else syncAudio();
 
@@ -459,6 +572,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, audio, 
         if (reopen) open();
       },
       dispose() {
+        log('player.dispose', { mountId });
         dead = true;
         open(false);
         listeners.abort();

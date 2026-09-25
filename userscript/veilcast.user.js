@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VeilCast Bilibili Restorer
 // @namespace    veilcast.local
-// @version      0.1.7
+// @version      0.1.11
 // @description  使用与桌面端一致的 seed、tile、margin 在播放器上叠加还原画面
 // @icon         data:image/png;base64,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
 // @icon64       data:image/png;base64,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
@@ -17,6 +17,7 @@
 // Generated by userscript/build.mjs; edit source files, then rebuild.
 (() => {
 'use strict';
+console.info('[VeilCast 0.1.11] script.loading');
 // Source: ../viewer/vendor/jsQR.js (Apache-2.0, see viewer/vendor/jsQR.LICENSE)
 const jsQR = (() => {
   const module = { exports: {} };
@@ -10237,18 +10238,22 @@ function encodeIntroHeader({ width, height, tile, margin, invert = false, audioM
   return digits + headerChecksum(digits);
 }
 
-/** Parses a digit string produced by encodeIntroHeader / IntroHeader::encode; throws on anything invalid. */
+/** Parses current and historical version-1 digit strings; validates the original checksum before interpreting fields. */
 function parseIntroHeader(text) {
   if (typeof text !== "string" || !/^[0-9]*$/.test(text)) throw new Error("header must contain only decimal digits");
-  if (text.length !== 22 && text.length !== 42) throw new Error(`header must be 22 or 42 digits, got ${text.length}`);
+  // Early version-1 videos omitted audio(4). They were already in use when
+  // the field was added without a version bump; keep those 18/38-digit codes readable.
+  const legacy = text.length === 18 || text.length === 38;
+  if (!legacy && text.length !== 22 && text.length !== 42) throw new Error(`header must be 18, 22, 38 or 42 digits, got ${text.length}`);
   const version = Number(text.slice(0, 2));
   if (version !== HEADER_VERSION) throw new Error(`unknown header version ${version}`);
   if (text.slice(-2) !== headerChecksum(text.slice(0, -2))) throw new Error("header checksum mismatch");
   const flags = Number(text[15]);
   if (flags > 1) throw new Error("header field flags is out of range");
   let seed = null;
-  if (text.length === 42) {
-    seed = BigInt(text.slice(20, 40));
+  if (text.length === 38 || text.length === 42) {
+    const seedOffset = legacy ? 16 : 20;
+    seed = BigInt(text.slice(seedOffset, seedOffset + 20));
     if (seed > MASK64) throw new Error("header field seed is out of range");
   }
   const header = {
@@ -10257,7 +10262,7 @@ function parseIntroHeader(text) {
     tile: Number(text.slice(10, 13)),
     margin: Number(text.slice(13, 15)),
     invert: flags === 1,
-    audioMs: Number(text.slice(16, 20)),
+    audioMs: legacy ? 0 : Number(text.slice(16, 20)),
     seed,
   };
   validateHeaderFields(header);
@@ -10272,46 +10277,114 @@ function parseIntroHeader(text) {
  * Frames are downscaled to `maxWidth` before decoding; QR readers prefer
  * modest resolutions and it keeps the cost to a few milliseconds per frame.
  */
-function scanIntro(video, { decode, untilSeconds = 1.5, intervalMs = 100, maxWidth = 640, maxMillis = 5000, signal } = {}) {
+function scanIntro(video, { decode, untilSeconds = 1.5, intervalMs = 100, maxWidth = 640, maxMillis = 5000, signal, onProgress } = {}) {
   if (typeof decode !== "function") throw new Error("scanIntro needs a decode(imageData) function");
+  const emit = (event, details) => { try { onProgress?.(event, details); } catch { /* Diagnostic callbacks are nonessential. */ } };
+  if (signal?.aborted) {
+    emit('stop', { reason: 'already-aborted', frames: 0 });
+    return Promise.resolve(null);
+  }
   // A paused playhead inside the intro window never advances past it, so the
   // poll also needs a wall-clock bound to end on ordinary videos.
   const startedAt = Date.now();
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d", { willReadFrequently: true });
   return new Promise((resolve, reject) => {
-    let timer = 0;
-    const stop = (value) => {
-      clearTimeout(timer);
+    let timer = null;
+    let settled = false;
+    let attempts = 0;
+    let frames = 0;
+    let qrHits = 0;
+    let invalidHeaders = 0;
+    let lastWait = '';
+    let stage = 'create-canvas';
+    let canvas;
+    let context;
+    const summary = () => ({ attempts, frames, qrHits, invalidHeaders, elapsedMs: Date.now() - startedAt });
+    const cleanup = () => {
+      if (timer !== null) clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
+    };
+    const stop = (value, reason) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      emit('stop', { reason, ...summary() });
       resolve(value);
     };
-    const onAbort = () => stop(null);
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      emit('error', { stage, ...summary(), errorName: error.name, errorMessage: error.message });
+      reject(error);
+    };
+    const onAbort = () => stop(null, 'aborted');
     signal?.addEventListener("abort", onAbort, { once: true });
+    emit('begin', { untilSeconds: Number.isFinite(untilSeconds) ? untilSeconds : 'current-frame', maxWidth, intervalMs, maxMillis });
+    try {
+      canvas = document.createElement("canvas");
+      context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) throw new Error('二维码识别需要可用的 Canvas 2D 上下文。');
+    } catch (error) { fail(error); return; }
     const attempt = () => {
+      if (settled) return;
+      attempts++;
       try {
-        if (video.readyState >= 2 && video.videoWidth > 0) {
+        // Check the visit BEFORE sampling: a stale frame after seeking away
+        // must not apply an intro belonging to an obsolete scan.
+        if (signal?.aborted) return stop(null, 'aborted');
+        if (video.currentTime > untilSeconds) return stop(null, 'outside-intro-window');
+        if (Date.now() - startedAt >= maxMillis) return stop(null, 'timeout');
+        if (!video.seeking && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+          frames++;
+          lastWait = '';
           const scale = Math.min(1, maxWidth / video.videoWidth);
           canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
           canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+          stage = 'draw-video';
           context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const text = decode(context.getImageData(0, 0, canvas.width, canvas.height));
+          stage = 'read-pixels';
+          const image = context.getImageData(0, 0, canvas.width, canvas.height);
+          if (frames <= 2 || frames % 10 === 0) {
+            const bytes = image.data;
+            const stride = Math.max(4, Math.floor(bytes.length / 128 / 4) * 4);
+            let low = 255, high = 0, total = 0, count = 0;
+            for (let at = 0; at + 2 < bytes.length; at += stride) {
+              const luma = (bytes[at] + bytes[at + 1] + bytes[at + 2]) / 3;
+              low = Math.min(low, luma); high = Math.max(high, luma); total += luma; count++;
+            }
+            emit('frame-read', { frame: frames, canvasWidth: canvas.width, canvasHeight: canvas.height,
+              sampleMin: Math.round(low), sampleMax: Math.round(high), sampleMean: count ? Math.round(total / count) : null });
+          }
+          stage = 'decode-qr';
+          const beforeDecode = Date.now();
+          const text = decode(image);
           if (text) {
+            qrHits++;
+            if (qrHits <= 2 || qrHits % 10 === 0) emit('qr-detected', { length: typeof text === 'string' ? text.length : null,
+              numeric: typeof text === 'string' && /^[0-9]+$/.test(text.trim()), decodeMs: Date.now() - beforeDecode });
+            stage = 'parse-header';
             try {
-              return stop(parseIntroHeader(text.trim()));
-            } catch {
+              const header = parseIntroHeader(text.trim());
+              emit('header-valid', { format: [18, 38].includes(text.trim().length) ? 'v1-legacy' : 'v1-audio', width: header.width, height: header.height, tile: header.tile,
+                margin: header.margin, invert: header.invert, audioMs: header.audioMs, hasSeed: header.seed !== null });
+              return stop(header, 'found');
+            } catch (error) {
+              invalidHeaders++;
+              if (invalidHeaders <= 2 || invalidHeaders % 10 === 0) emit('header-rejected', { reason: error.message, length: text.length });
               // A QR code that is not ours; keep looking until the window closes.
             }
+          } else if (frames <= 2 || frames % 10 === 0) {
+            emit('no-qr', { frame: frames, decodeMs: Date.now() - beforeDecode });
           }
+        } else {
+          const reason = video.seeking ? 'seeking' : video.readyState < 2 ? 'frame-not-ready' : 'empty-video-size';
+          if (reason !== lastWait || attempts % 10 === 0) emit('waiting-frame', { reason, ...summary() });
+          lastWait = reason;
         }
-        if (video.ended || video.currentTime > untilSeconds || Date.now() - startedAt >= maxMillis) {
-          return stop(null);
-        }
+        if (video.ended) return stop(null, 'ended');
         timer = setTimeout(attempt, intervalMs);
       } catch (error) {
-        clearTimeout(timer);
-        signal?.removeEventListener("abort", onAbort);
-        reject(error);
+        fail(error);
       }
     };
     attempt();
@@ -10738,6 +10811,86 @@ const BILIBILI_AUDIO = /-(?:30216|30232|30280|30250|30251)\.m4s(?:[?#]|$)/;
 // Media elements can be captured by Web Audio only once in their lifetime.
 const captures = new WeakMap();
 
+/** Inspect container structure only. No audio samples, URLs or arbitrary payload text are returned. */
+function inspectAudioBytes(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  const tag = (at) => String.fromCharCode(...bytes.subarray(at, at + 4));
+  const result = { format: 'unknown', bytes: bytes.length };
+  if (bytes.length >= 12 && tag(0) === 'RIFF' && tag(8) === 'WAVE') return { ...result, format: 'wav' };
+  if (tag(0) === 'fLaC') return { ...result, format: 'flac' };
+  if (tag(0) === 'OggS') return { ...result, format: 'ogg' };
+  if (tag(0).startsWith('ID3')) return { ...result, format: 'mp3' };
+  const topTypes = new Set(['ftyp', 'styp', 'moov', 'moof', 'mdat', 'sidx', 'free', 'skip', 'wide', 'mfra']);
+  if (bytes.length < 8 || !topTypes.has(tag(4))) return result;
+  Object.assign(result, { format: 'mp4', boxes: [], codecs: [], hasMoov: false, hasMoof: false, truncated: false, limitedInspection: false });
+  const containers = new Set(['moov', 'trak', 'mdia', 'minf', 'stbl']);
+  const codecs = new Set(['mp4a', 'ac-3', 'ec-3', 'Opus', 'fLaC', 'alac', 'enca', 'avc1', 'hvc1', 'hev1', 'av01', 'vp09']);
+  let count = 0;
+  function walk(start, end, depth) {
+    let at = start;
+    while (at < end) {
+      if (++count > 512 || depth > 8) { result.limitedInspection = true; return; }
+      if (at + 8 > end) { result.truncated = true; return; }
+      const type = tag(at + 4);
+      let size = view.getUint32(at);
+      let header = 8;
+      if (size === 1) {
+        if (at + 16 > end) { result.truncated = true; return; }
+        size = view.getUint32(at + 8) * 4294967296 + view.getUint32(at + 12);
+        header = 16;
+      } else if (size === 0) size = end - at;
+      if (!Number.isSafeInteger(size) || size < header || at + size > end) { result.truncated = true; return; }
+      if (depth === 0) {
+        if (result.boxes.length < 16) result.boxes.push(topTypes.has(type) ? type : 'other');
+        if (type === 'moov') result.hasMoov = true;
+        if (type === 'moof') result.hasMoof = true;
+      }
+      if (codecs.has(type) && !result.codecs.includes(type)) result.codecs.push(type);
+      if (containers.has(type)) walk(at + header, at + size, depth + 1);
+      if (type === 'stsd' && size >= header + 8) walk(at + header + 8, at + size, depth + 1);
+      at += size;
+    }
+  }
+  walk(0, bytes.length, 0);
+  result.fragmentWithoutInit = !result.limitedInspection && result.hasMoof && !result.hasMoov;
+  return result;
+}
+
+/** Retry a provably partial response once using an open-ended byte range. */
+async function fetchAudioFile(url, { signal, trace = () => {}, request = fetch } = {}) {
+  const note = (event, details) => { try { trace(event, details); } catch { /* Optional diagnostics. */ } };
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    const response = await request(url, { signal, ...(attempt === 2 ? { headers: { Range: 'bytes=0-' } } : {}) });
+    const type = response.headers?.get?.('content-type')?.split(';')[0] ?? null;
+    const rawRange = response.headers?.get?.('content-range') ?? '';
+    const match = /^bytes (\d+)-(\d+)\/(\d+|\*)$/i.exec(rawRange);
+    const range = match ? { start: Number(match[1]), end: Number(match[2]), total: match[3] === '*' ? null : Number(match[3]) } : null;
+    note('download-response', { attempt, httpStatus: response.status, contentType: type, range });
+    if (!response.ok) throw new Error('下载音轨失败：HTTP ' + response.status);
+    if (type === 'text/html' || type === 'application/json') throw new Error('音轨请求返回了非音频内容：' + type);
+    const buffer = await response.arrayBuffer();
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    const info = inspectAudioBytes(buffer);
+    note('download-inspected', { attempt, ...info });
+    const partial = response.status === 206 && (!range || range.start !== 0 || range.total === null || range.end + 1 !== range.total || buffer.byteLength !== range.total);
+    const incomplete = info.truncated || info.fragmentWithoutInit;
+    if (attempt === 1 && (partial || incomplete)) {
+      note('download-full-retry', { partialResponse: partial, incompleteContainer: Boolean(incomplete) });
+      continue;
+    }
+    // A hidden Content-Range alone is not proof of truncation after retry.
+    const provenPartial = response.status === 206 && range && (range.start !== 0 ||
+      (range.total !== null && (range.end + 1 !== range.total || buffer.byteLength !== range.total)));
+    if (provenPartial || incomplete) {
+      throw new Error(info.fragmentWithoutInit ? '下载结果缺少 MP4 初始化信息（moov），不是完整音轨。'
+        : '下载结果仍是不完整的音轨，请复制 download-response / download-inspected 日志。');
+    }
+    return buffer;
+  }
+}
+
 /** The most recent audio request at or after `since` (ms, performance time). */
 function pickAudioUrl(entries, { since = 0, pattern = BILIBILI_AUDIO } = {}) {
   let latest = null;
@@ -10794,33 +10947,53 @@ async function locateAudio(video, watcher, { since = 0, timeoutMs = 20000, signa
  * page. Without one (or when the element is already captured elsewhere) the
  * element is muted instead, which never touches its clock.
  */
-function silence(video) {
+function silence(video, trace = () => {}) {
   if (navigator.userActivation?.hasBeenActive) {
+    let unusedContext = null;
+    let attached = false;
     try {
       let capture = captures.get(video);
       if (!capture) {
         const context = new AudioContext();
+        unusedContext = context;
+        // Do not attach a video to a suspended graph: that can stall its clock.
+        if (context.state !== 'running') throw new Error('Web Audio context is not running; use mute fallback');
         const gain = context.createGain();
-        context.createMediaElementSource(video).connect(gain).connect(context.destination);
+        const source = context.createMediaElementSource(video);
+        attached = true;
+        source.connect(gain).connect(context.destination);
         capture = { context, gain };
         captures.set(video, capture);
       }
-      capture.context.resume().catch(() => {});
+      const resume = () => {
+        capture.context.resume().catch((error) => trace('capture-resume-error', { error, contextState: capture.context.state }));
+      };
+      resume();
       capture.gain.gain.value = 0;
+      trace('original-silenced', { mode: 'captured', contextState: capture.context.state });
+      let restored = false;
       return {
         mode: 'captured',
         muted: () => video.muted,
+        resume,
+        contextState: () => capture.context.state,
         restore() {
+          if (restored) return;
+          restored = true;
           capture.gain.gain.value = 1;
-          capture.context.resume().catch(() => {});
+          resume();
         },
       };
-    } catch {
+    } catch (error) {
       // Captured by the page itself; fall back to muting.
+      trace('capture-unavailable', { error });
+      if (unusedContext && !attached) unusedContext.close().catch(() => {});
     }
   }
   let wanted = video.muted;
   video.muted = true;
+  trace('original-silenced', { mode: 'muted', wantedMuted: wanted });
+  let restored = false;
   return {
     mode: 'muted',
     // The player shows "muted" throughout; unmuting there means "let me hear
@@ -10832,120 +11005,465 @@ function silence(video) {
       }
       return wanted;
     },
-    restore() { video.muted = wanted; },
+    restore() { if (!restored) { restored = true; video.muted = wanted; } },
   };
 }
 
 /**
  * Starts restoring the audio of `video`, whose blocks of `blockMs` begin
  * `introSeconds` into the media (the intro QR second). `report(state, text)`
- * receives 'loading' | 'ready' | 'error' with a message. The returned handle's
- * destroy() stops playback and hands the sound back to the page.
+ * receives 'loading' | 'ready' | 'blocked' | 'error' with a message.
+ * disable()/enable() hand sound back and reuse the prepared WAV and media
+ * element. destroy() additionally cancels work and releases the cached URL.
  */
-function createAudioRestorer({ video, blockMs, introSeconds = 1, host, locate, report, findAudioGrid, reverseAudioBlocks, encodeWav }) {
+function createAudioRestorer({ video, blockMs, introSeconds = 1, host, locate, report, findAudioGrid, reverseAudioBlocks, encodeWav, trace = () => {} }) {
   const abort = new AbortController();
-  const silenced = silence(video);
   const audio = document.createElement('audio');
   audio.dataset.veilcastAudio = '';
   audio.preload = 'auto';
   host.append(audio);
   let objectUrl = null;
-  let ready = false;
+  let prepared = false;
+  let active = false;
+  let destroyed = false;
+  let silenced = null;
+  let preparation = null;
+  let epoch = 0;
+  let playPending = null;
+  let playBlocked = false;
+  let playFailed = false;
+  let mediaFailed = false;
+  let needsAlignment = true;
+  let lastState = '';
+  let loadingText = '音频：正在查找音轨，当前播放原声…';
+  let readyText = '';
+
+  const note = (event, details = {}) => {
+    try { trace(event, { active, epoch, prepared, blockMs, videoTime: video.currentTime,
+      videoPaused: video.paused, videoReadyState: video.readyState, originalMuted: video.muted,
+      audioTime: audio.currentTime, audioReadyState: audio.readyState, audioPaused: audio.paused,
+      audioMuted: audio.muted, volume: video.volume, mode: silenced?.mode,
+      contextState: silenced?.contextState?.(), ...details }); } catch { /* Diagnostics are optional. */ }
+  };
+  function status(state, text) {
+    if (destroyed || !active || lastState === state + ':' + text) return;
+    lastState = state + ':' + text;
+    try { report(state, text); } catch (error) { note('report-error', { error }); }
+  }
+  function pauseAudio() {
+    playPending = null;
+    audio.pause();
+  }
+  function restoreOriginal(reason) {
+    pauseAudio();
+    const previous = silenced;
+    silenced = null;
+    previous?.restore();
+    note('original-restored', { reason });
+  }
+  function startPlayback() {
+    if (playPending || playBlocked || playFailed || !audio.paused) return;
+    const attempt = { epoch };
+    playPending = attempt;
+    note('play-request');
+    let result;
+    try { result = audio.play(); }
+    catch (error) { result = Promise.reject(error); }
+    Promise.resolve(result).then(() => {
+      if (destroyed || !active) { audio.pause(); return; }
+      if (attempt.epoch !== epoch || playPending !== attempt) return;
+      // Hand over only after the replacement media has actually started.
+      if (!silenced) silenced = silence(video, note);
+      audio.muted = silenced.muted();
+      audio.volume = video.volume;
+      note('play-started');
+      status('ready', readyText + ' · 播放中');
+    }).catch((error) => {
+      if (destroyed || !active || attempt.epoch !== epoch || playPending !== attempt) return;
+      note('play-rejected', { error });
+      restoreOriginal('play-rejected');
+      if (error.name === 'AbortError') return;
+      if (error.name === 'NotAllowedError') {
+        playBlocked = true;
+        status('blocked', '还原音轨播放被浏览器拦截，已恢复原声（未还原）；点击页面或再次应用参数重试。');
+      } else {
+        playFailed = true;
+        mediaFailed = error.name === 'NotSupportedError';
+        status('error', '还原音轨播放失败，已恢复原声（未还原）：' + (error.name ?? 'Error') + '：' + (error.message ?? error));
+      }
+    }).finally(() => { if (playPending === attempt) playPending = null; });
+  }
 
   function follow() {
-    // Before anything else, so an unmute in the player never lets the
-    // scrambled track through, even while the restored one is loading.
-    const muted = silenced.muted();
-    if (!ready) return;
+    if (destroyed || !active || playBlocked || playFailed) return;
+    const muted = silenced ? silenced.muted() : video.muted;
     audio.volume = video.volume;
     audio.muted = muted;
-    if (video.paused || video.ended || video.seeking || video.readyState < 3) {
-      audio.playbackRate = video.playbackRate;
-      audio.pause();
-      // Keep the position too, so scrubbing while paused resumes in step.
-      if (Math.abs(audio.currentTime - video.currentTime) > 0.01) audio.currentTime = video.currentTime;
+    // Source assignment is not proof that the media element can seek yet.
+    // loadedmetadata/canplay will resume synchronization when it becomes ready.
+    if (!prepared) return;
+    if (audio.readyState < 1) {
+      if (!mediaFailed) status('loading', '音轨已还原，等待音频播放器就绪…');
       return;
     }
-    // Drift is pulled in by running fast or slow in proportion to it, at most
-    // 10% (pitch is preserved, so it goes unnoticed); only a jump such as a
-    // seek resyncs hard, since every hard resync restarts the audio late.
+    if (video.paused || video.ended || video.seeking || video.readyState < 3) {
+      audio.playbackRate = video.playbackRate;
+      pauseAudio();
+      needsAlignment = true;
+      if (Math.abs(audio.currentTime - video.currentTime) > 0.01) audio.currentTime = video.currentTime;
+      status('ready', readyText + (video.paused ? ' · 跟随视频暂停' : ' · 等待视频就绪'));
+      return;
+    }
+    if (Number.isFinite(audio.duration) && audio.duration > 0 && video.currentTime >= audio.duration) {
+      pauseAudio();
+      status('ready', readyText + ' · 当前进度已到音轨末尾');
+      return;
+    }
     const lag = video.currentTime - audio.currentTime;
-    if (Math.abs(lag) > 0.25) {
+    if (needsAlignment || Math.abs(lag) > 0.25) {
       audio.currentTime = video.currentTime;
       audio.playbackRate = video.playbackRate;
+      needsAlignment = false;
+      note('aligned');
     } else {
       const nudge = Math.abs(lag) > 0.015 ? Math.max(-0.1, Math.min(0.1, lag)) : 0;
       audio.playbackRate = video.playbackRate * (1 + nudge);
     }
-    if (audio.paused) {
-      audio.play().catch(() => {
-        report('ready', '音频已还原，但浏览器拦截了自动播放：点击页面任意处即可听到。');
-        document.addEventListener('pointerdown', follow, { once: true, capture: true, signal: abort.signal });
-      });
-    }
+    startPlayback();
   }
-  const events = ['play', 'playing', 'pause', 'waiting', 'seeking', 'seeked', 'ratechange', 'volumechange', 'timeupdate', 'ended'];
+  const events = ['play', 'playing', 'canplay', 'pause', 'waiting', 'seeking', 'seeked', 'ratechange', 'volumechange', 'timeupdate', 'ended'];
   for (const name of events) video.addEventListener(name, follow, { signal: abort.signal });
+  for (const name of ['loadedmetadata', 'loadeddata', 'canplay', 'seeked']) {
+    audio.addEventListener(name, () => { note('media-ready', { event: name }); follow(); }, { signal: abort.signal });
+  }
+  audio.addEventListener('error', () => {
+    if (destroyed) return;
+    playFailed = true;
+    mediaFailed = true;
+    note('media-error', { code: audio.error?.code, message: audio.error?.message });
+    restoreOriginal('media-error');
+    status('error', '还原音轨加载失败，已恢复原声（未还原）：' + (audio.error?.message || '媒体错误 ' + (audio.error?.code ?? '?')));
+  }, { signal: abort.signal });
+  // One listener per handle, rather than one per rejected play() call.
+  document.addEventListener('pointerdown', () => {
+    if (!active || destroyed || !playBlocked) return;
+    note('gesture-retry');
+    playBlocked = false;
+    silenced?.resume?.();
+    follow();
+  }, { capture: true, signal: abort.signal });
 
-  (async () => {
+  async function prepare() {
+    let stage = 'locate';
     try {
-      report('loading', '音频：正在查找音轨…');
+      loadingText = '音频：正在查找音轨，当前播放原声…';
+      status('loading', loadingText);
+      note('locate-start');
       const url = await locate(abort.signal);
-      report('loading', '音频：正在下载音轨…');
-      const response = await fetch(url, { signal: abort.signal });
-      if (!response.ok) throw new Error(`下载音轨失败：HTTP ${response.status}`);
-      const bytes = await response.arrayBuffer();
-      report('loading', '音频：正在解码并还原…');
+      if (destroyed) return;
+      stage = 'download';
+      loadingText = '音频：正在下载音轨，当前播放原声…';
+      status('loading', loadingText);
+      note('download-start');
+      const bytes = await fetchAudioFile(url, { signal: abort.signal, trace: note });
+      if (destroyed) return;
+      note('download-complete', { bytes: bytes.byteLength });
+      stage = 'decode';
+      loadingText = '音频：正在解码并还原，当前播放原声…';
+      status('loading', loadingText);
       const decoded = await new OfflineAudioContext(1, 1, AUDIO_RATE).decodeAudioData(bytes);
-      if (abort.signal.aborted) return;
+      if (destroyed) return;
+      stage = 'restore';
       const channels = Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i));
       const nominal = Math.round(introSeconds * AUDIO_RATE);
       const grid = findAudioGrid(channels, { sampleRate: AUDIO_RATE, blockMs, nominalStart: nominal });
-      // Nothing to lock onto (e.g. a silent track): trust the nominal grid.
       const start = grid.confidence >= 2 ? grid.start : nominal;
-      // Blocks are reversed from the first grid point in the file; those
-      // inside the intro only hold silence, so reversing them is harmless and
-      // keeps a missing intro from leaving the first blocks backwards.
       const block = Math.round((AUDIO_RATE * blockMs) / 1000);
       reverseAudioBlocks(channels, { sampleRate: AUDIO_RATE, blockMs, start: ((start % block) + block) % block });
       const wav = encodeWav(channels, AUDIO_RATE, { offset: start - nominal });
-      if (abort.signal.aborted) return;
+      if (destroyed) return;
       objectUrl = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
-      audio.src = objectUrl;
-      ready = true;
+      prepared = true;
       const shift = ((start - nominal) / AUDIO_RATE) * 1000;
-      report('ready', `音频已还原 · 块长 ${blockMs} ms · 对齐 ${shift >= 0 ? '+' : ''}${shift.toFixed(1)} ms`);
+      readyText = '音频已还原 · 块长 ' + blockMs + ' ms · 对齐 ' + (shift >= 0 ? '+' : '') + shift.toFixed(1) + ' ms';
+      audio.src = objectUrl;
+      audio.load();
+      note('prepared', { channels: decoded.numberOfChannels, offsetMs: shift });
+      status('ready', readyText);
       follow();
     } catch (error) {
-      if (abort.signal.aborted) return;
-      // The page's own track is scrambled, so it stays silent: noise would not help.
-      report('error', `音频还原失败，原声保持静音：${error.message ?? error}`);
+      if (destroyed) return;
+      note('prepare-error', { stage, error });
+      restoreOriginal('prepare-error');
+      status('error', '音频还原失败，已恢复原声（未还原）：' + (error.name ?? 'Error') + '：' + (error.message ?? error));
     }
-  })();
+  }
 
+  function enable() {
+    if (destroyed) return;
+    if (!active) {
+      active = true;
+      epoch++;
+      needsAlignment = true;
+    }
+    lastState = '';
+    playBlocked = false;
+    playFailed = false;
+    silenced?.resume?.();
+    note('enabled', { cacheHit: prepared });
+    if (prepared) {
+      if (mediaFailed) {
+        mediaFailed = false;
+        audio.load();
+      }
+      status('ready', readyText + ' · 复用已还原音轨');
+      follow(); // Ready cached media can play inside the user's enable click.
+    } else {
+      status('loading', loadingText);
+      if (!preparation) preparation = prepare().finally(() => { preparation = null; });
+    }
+  }
+  function disable() {
+    if (destroyed || !active) return;
+    active = false;
+    epoch++;
+    restoreOriginal('disabled');
+    note('disabled', { cacheRetained: prepared });
+  }
+  function destroy() {
+    if (destroyed) return;
+    disable();
+    destroyed = true;
+    abort.abort();
+    pauseAudio();
+    audio.removeAttribute('src');
+    audio.load();
+    audio.remove();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = null;
+    note('destroyed');
+  }
+  try { enable(); } catch (error) { destroy(); throw error; }
+  return { blockMs, get mode() { return silenced?.mode ?? 'inactive'; }, enable, disable, destroy };
+}
+
+// Source: src/diagnostics.js
+/** Local-only, bounded diagnostics. Never persist or transmit media, seeds or URLs. */
+function createDiagnostics({ version = 'unknown', sink = console, capacity = 250, now = () => new Date().toISOString() } = {}) {
+  const entries = [];
+  let sequence = 0;
+  const limit = Math.max(1, Math.min(1000, Math.trunc(capacity) || 250));
+  const secret = /^(seed|token|cookie|authorization|rawValue|rawText|payload|url|src|currentSrc|href|pixels|imageData)$/i;
+  const cleanText = (value) => String(value)
+    .replace(/(?:https?:\/\/|blob:|data:)\S+/gi, '[URL]')
+    .replace(/[0-9]{20,}/g, '[long numeric payload]')
+    .slice(0, 500);
+  function snapshot(value, depth = 0) {
+    if (depth > 4) return '[depth limit]';
+    if (value instanceof Error || (value && typeof value === 'object' && typeof value.name === 'string' && typeof value.message === 'string')) {
+      return { name: cleanText(value.name), message: cleanText(value.message) };
+    }
+    if (typeof value === 'string') return cleanText(value);
+    if (typeof value === 'bigint') return '[bigint]';
+    if (typeof value === 'number') return Number.isFinite(value) ? value : String(value);
+    if (value == null || typeof value === 'boolean') return value;
+    if (Array.isArray(value)) return value.slice(0, 20).map((item) => snapshot(item, depth + 1));
+    if (typeof value === 'object') return Object.fromEntries(Object.entries(value).slice(0, 40)
+      .map(([key, item]) => [key, secret.test(key) ? '[redacted]' : snapshot(item, depth + 1)]));
+    return `[${typeof value}]`;
+  }
   return {
-    blockMs,
-    mode: silenced.mode,
-    destroy() {
-      abort.abort();
-      audio.pause();
-      audio.removeAttribute('src');
-      audio.remove();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-      silenced.restore();
+    log(event, details = {}, level = 'info') {
+      const entry = { sequence: ++sequence, time: now(), level, event: cleanText(event), details: snapshot(details) };
+      entries.push(entry);
+      if (entries.length > limit) entries.shift();
+      const method = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info';
+      // Log a string snapshot, not live references which DevTools may expand later.
+      try { sink?.[method]?.(`[VeilCast ${version}] #${entry.sequence} ${entry.event}`, JSON.stringify(entry.details)); }
+      catch { /* Console failures must not change playback or decoding. */ }
+    },
+    dump() {
+      return `VeilCast ${version} diagnostics (local, redacted)\n${entries.map((entry) => JSON.stringify(entry)).join('\n')}`;
     },
   };
 }
 
+/** A media snapshot with no source URL or pixel data. */
+function introVideoState(video) {
+  const source = video.currentSrc || video.src || '';
+  return {
+    currentTime: video.currentTime, readyState: video.readyState, networkState: video.networkState,
+    paused: video.paused, seeking: video.seeking, ended: video.ended,
+    videoWidth: video.videoWidth, videoHeight: video.videoHeight, connected: video.isConnected,
+    crossOrigin: video.crossOrigin ?? null,
+    sourceKind: video.srcObject ? 'stream' : source.startsWith('blob:') ? 'blob' : source.startsWith('data:') ? 'data' : source ? 'url' : 'empty',
+  };
+}
+
+// Source: src/intro.js
+/** Media-event coordination, separate from DOM UI so seek/buffering races are testable. */
+function createIntroReader(video, {
+  scan, decode, enabled, onHeader, report = () => {}, isCurrent = () => true,
+  untilSeconds = 1.5, signal, trace = () => {},
+}) {
+  const lifetime = new AbortController();
+  let stopped = false;
+  let accepted = false;
+  let attempted = false;
+  let pending = null;
+  let scanId = 0;
+  let lastSkip = '';
+
+  const note = (event, details = {}) => {
+    try { trace(event, { currentTime: video.currentTime, readyState: video.readyState, seeking: video.seeking, paused: video.paused, ...details }); }
+    catch { /* Diagnostics must not interrupt the reader. */ }
+  };
+  const state = (value, error) => {
+    note('state', { state: value, scanId: pending?.id, error });
+    try { report(value, error); } catch (failure) { note('report-failed', { error: failure }); }
+  };
+  function skip(reason, manual) {
+    if (manual || lastSkip !== reason) note('request-skipped', { reason, manual });
+    lastSkip = reason;
+    if (manual) state('error', new Error(reason === 'stopped'
+      ? '二维码读码器已停止，请重新打开设置窗口。'
+      : '当前视频绑定已过期，请重新打开设置窗口或刷新页面。'));
+    return false;
+  }
+
+  function cancel(reason = 'cancelled') {
+    const old = pending;
+    pending = null; // Invalidate a decoder that ignores cancellation, too.
+    if (old) note('scan-cancelled', { scanId: old.id, reason });
+    old?.controller.abort();
+  }
+
+  function reset() {
+    cancel();
+    accepted = false;
+    attempted = false;
+    if (!stopped) state(enabled() ? 'waiting' : 'off');
+  }
+
+  async function request({ manual = false, retry = false } = {}) {
+    if (manual) note('manual-request', { stopped, retry, pendingScanId: pending?.id });
+    if (stopped) return skip('stopped', manual);
+    if (!isCurrent()) return skip('stale-video-binding', manual);
+    if (!manual && pending?.manual) return skip('manual-scan-running', false);
+    if (!manual && !enabled()) {
+      if (pending && !pending.manual) cancel();
+      if (lastSkip !== 'auto-disabled') state('off');
+      skip('auto-disabled', false);
+      return false;
+    }
+    if (!manual && video.currentTime > untilSeconds) {
+      if (pending && !pending.manual) cancel('left-intro-window');
+      attempted = false;
+      return skip('outside-intro-window', false);
+    }
+    if (!manual && (accepted || pending || (attempted && !retry))) {
+      return skip(accepted ? 'already-applied' : pending ? 'scan-running' : 'visit-attempt-finished', false);
+    }
+    if (manual) cancel('manual-retry');
+
+    // Start even at HAVE_METADATA: scan() waits for a usable, non-seeking frame.
+    const run = { controller: new AbortController(), manual, id: ++scanId };
+    pending = run;
+    attempted = true;
+    lastSkip = '';
+    note('scan-start', { scanId: run.id, manual, untilSeconds: manual ? 'current-frame' : untilSeconds });
+    state('scanning');
+    try {
+      const header = await scan(video, {
+        decode, signal: run.controller.signal,
+        untilSeconds: manual ? Infinity : untilSeconds,
+        onProgress: (event, details) => {
+          if (pending !== run) return;
+          note(`scanner.${event}`, { scanId: run.id, ...details });
+        },
+      });
+      if (stopped || pending !== run || run.controller.signal.aborted || !isCurrent()) {
+        note('result-discarded', { scanId: run.id, stopped, superseded: pending !== run, aborted: run.controller.signal.aborted, currentBinding: isCurrent() });
+        if (manual && !stopped && pending === run) state('error', new Error('识别期间视频绑定发生变化，请重新识别。'));
+        return false;
+      }
+      if (!manual && (!enabled() || video.currentTime > untilSeconds)) {
+        note('result-discarded', { scanId: run.id, reason: 'auto-disabled-or-left-intro' });
+        return false;
+      }
+      if (!header) {
+        state('missing');
+        return false;
+      }
+      // This callback is synchronous. Latch only AFTER the UI accepts the plan.
+      note('apply-start', { scanId: run.id, width: header.width, height: header.height, tile: header.tile,
+        margin: header.margin, invert: header.invert, audioMs: header.audioMs, hasSeed: header.seed !== null });
+      if (onHeader(header) === false) {
+        note('apply-rejected', { scanId: run.id });
+        state('error', new Error('片头参数未成功应用，请检查设置后重试。'));
+        return false;
+      }
+      accepted = true;
+      note('apply-complete', { scanId: run.id });
+      state('found');
+      return true;
+    } catch (error) {
+      if (!stopped && pending === run && !run.controller.signal.aborted) {
+        note('scan-error', { scanId: run.id, error });
+        state('error', error);
+      }
+      return false;
+    } finally {
+      if (pending === run) { note('scan-finished', { scanId: run.id, accepted }); pending = null; }
+    }
+  }
+
+  const on = (name, callback) => video.addEventListener(name, callback, { signal: lifetime.signal });
+  for (const name of ['loadstart', 'emptied']) on(name, () => { note('media-event', { type: name }); reset(); });
+  on('seeking', () => {
+    note('media-event', { type: 'seeking' });
+    cancel('seeking');
+    attempted = false;
+    if (!accepted && enabled()) state('waiting');
+  });
+  // A new frame after seek may arrive through canplay/playing without another
+  // loadeddata event. Event bursts share one in-flight scan rather than aborting it.
+  for (const name of ['loadeddata', 'canplay', 'playing', 'play', 'seeked']) {
+    on(name, () => { note('media-event', { type: name }); void request({ retry: true }); });
+  }
+  // Backstop for a player which changes time without a normal seek event pair.
+  // Failed attempts are not restarted on every timeupdate while paused at zero.
+  on('timeupdate', () => { void request(); });
+
+  function stop() {
+    if (stopped) return;
+    stopped = true;
+    cancel('disposed');
+    lifetime.abort();
+    signal?.removeEventListener('abort', stop);
+  }
+  if (signal?.aborted) stop();
+  else {
+    signal?.addEventListener('abort', stop, { once: true });
+    state(enabled() ? 'waiting' : 'off');
+    void request();
+  }
+  return { request, reset, stop };
+}
+
 // Source: src/main.js
 /** Browser integration only. The renderer and desktop defaults are injected by the build. */
-function installUserscript({ createRestorer, scanIntro, decodeQr, audio, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, pageSettings, rememberPageSettings, forgetPageSettings, storage, menu, iconUrl }) {
+function installUserscript({ createRestorer, scanIntro, decodeQr, createIntroReader, audio, defaults, validateSettings, querySettings, descriptionSettings, videoPageKey, pageSettings, rememberPageSettings, forgetPageSettings, storage, menu, iconUrl, diagnostics, introVideoState, scriptVersion = 'unknown' }) {
   const SELECTOR = '.bpx-player-primary-area video';
   const TOOLBAR_SELECTOR = '#arc_toolbar_report .video-toolbar-left-main';
   const STORAGE_KEY = 'veilcast.bilibili.settings.v1';
   // Per-video memory, keyed by BVID and part: what the intro QR said, plus
   // whatever the viewer corrected by hand on that page.
   const PAGES_KEY = 'veilcast.bilibili.pages.v1';
+  const log = (event, details = {}, level = 'info') => diagnostics?.log(event, details, level);
+  const mediaState = (video) => introVideoState?.(video) ?? { currentTime: video.currentTime, readyState: video.readyState };
+  let mountSequence = 0;
+  log('install.start', { scriptVersion, documentReady: document.readyState, documentHidden: document.hidden, decoderAvailable: typeof decodeQr === 'function' });
   let settings;
   let settingsNotice = '';
   let enabled = false;
@@ -11003,6 +11521,9 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
   enabled = autoEnabled();
 
   function mount(video, toolbar) {
+    const mountId = ++mountSequence;
+    const mountedPageKey = pageKey;
+    log('player.mount', { mountId, candidates: document.querySelectorAll(SELECTOR).length, ...mediaState(video) });
     const area = video.closest('.bpx-player-primary-area');
     const wrapper = video.parentElement;
     const listeners = new AbortController();
@@ -11045,14 +11566,20 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
         header, .row { display: flex; align-items: center; gap: 8px; }
         header { justify-content: space-between; margin-bottom: 10px; }
         header strong { font-size: 14px; }
+        #build-version { font-size: 11px; font-weight: normal; color: #95a7c6; }
         label { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; margin-bottom: 10px; }
         input { width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid #46516b; border-radius: 6px; background: #0c1220; }
         .check { flex-direction: row; align-items: center; gap: 8px; }
         .check input { width: 16px; height: 16px; margin: 0; accent-color: #00aeec; }
-        #from-description { padding: 4px 8px; margin-bottom: 10px; font-size: 12px; }
+        #from-description, #scan-intro, #copy-diagnostics { padding: 4px 8px; margin-bottom: 10px; font-size: 12px; }
+        #intro-status { margin: 0 0 10px; }
+        #log-details { margin-top: 10px; }
+        #log-details summary { cursor: pointer; }
+        #diagnostic-log { width: 100%; height: 160px; margin-top: 6px; background: #0c1220; color: #b7c9e9;
+          border: 1px solid #46516b; border-radius: 6px; font: 11px/1.4 monospace; resize: vertical; }
         p { margin: 8px 0 0; color: #b4c1d8; overflow-wrap: anywhere; }
         #toggle { flex: 1; background: #245b9c; }
-        #status[data-error=true] { color: #ffb3b3; }
+        [role=status][data-error=true] { color: #ffb3b3; }
         small { display: block; color: #95a7c6; margin-bottom: 10px; }
       </style>
       <button id="open" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="panel">
@@ -11061,7 +11588,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
       </button>
       <dialog id="panel" aria-labelledby="panel-title">
       <form>
-        <header><strong id="panel-title">VeilCast · 画面还原</strong><button id="close" type="button" aria-label="关闭设置">关闭</button></header>
+        <header><strong id="panel-title">VeilCast · 画面还原 <span id="build-version"></span></strong><button id="close" type="button" aria-label="关闭设置">关闭</button></header>
         <label>seed（数字或文字）<input name="seed" type="text" maxlength="4096" autocomplete="off" spellcheck="false"></label>
         <div class="row">
           <label>tile / tail（偶数）<input name="tile" type="number" min="2" max="16384" step="2" required></label>
@@ -11072,16 +11599,24 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
           <label>原始高度<input name="height" type="number" min="1" max="16384" step="1" required></label>
         </div>
         <small>填写加密前的尺寸，而非当前播放清晰度；五项参数需与加密端一致。</small>
-        <label>音频块长 ms（0 = 不处理音频）<input name="audioMs" type="number" min="0" max="9999" step="50" required></label>
+        <label>音频块长 ms（0 = 不处理音频）<input name="audioMs" type="number" min="0" max="9999" step="1" required></label>
         <label class="check"><input name="invert" type="checkbox">反色（与加密端保持一致）</label>
         <label class="check"><input name="autoIntro" type="checkbox">自动读取片头二维码并启用还原</label>
         <button id="from-description" type="button">读取简介参数</button>
+        <button id="scan-intro" type="button">识别当前二维码</button>
+        <p id="intro-status" role="status" aria-live="polite"></p>
         <div class="row"><button id="toggle" type="button">启用还原</button><button type="submit">应用参数</button><button id="reset" type="button">默认</button></div>
         <p id="status" role="status" aria-live="polite"></p>
         <p id="audio-status" role="status" aria-live="polite" hidden></p>
-        <small>只处理画面；声音、弹幕和播放控制仍由原播放器负责。</small>
+        <button id="copy-diagnostics" type="button">复制诊断日志</button>
+        <p id="log-status" role="status" aria-live="polite"></p>
+        <details id="log-details"><summary>查看诊断日志（本地，已脱敏）</summary>
+          <textarea id="diagnostic-log" readonly spellcheck="false" aria-label="VeilCast 诊断日志"></textarea>
+        </details>
+        <small>音频块长大于 0 时一并还原声音；弹幕和播放控制保留。</small>
       </form></dialog>`;
     const brandIcon = shadow.getElementById('brand-icon');
+    shadow.getElementById('build-version').textContent = `v${scriptVersion}`;
     if (iconUrl) brandIcon.src = iconUrl;
     else brandIcon.hidden = true;
     toolbar.after(ui);
@@ -11139,19 +11674,45 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
     // Read it while the playhead is still inside that window, then apply and
     // switch the restorer on: only our own header parses, so nothing happens
     // on ordinary videos.
-    let introScan = null;
-    let introRead = false;
-    async function readIntroHeader() {
-      if (dead || introRead || !settings.autoIntro || !scanIntro || !decodeQr) return;
-      if (video.currentTime > 1.5 || video.readyState < 2) return;
-      introScan?.abort();
-      introScan = new AbortController();
-      const signal = AbortSignal.any ? AbortSignal.any([introScan.signal, listeners.signal]) : introScan.signal;
-      let header;
-      try { header = await scanIntro(video, { decode: decodeQr, signal }); }
-      catch { return; }
-      if (!header || dead) return;
-      introRead = true;
+    let introReader = null;
+    const scanButton = shadow.getElementById('scan-intro');
+    function introReport(state, error) {
+      const label = shadow.getElementById('intro-status');
+      ui.dataset.intro = state;
+      label.dataset.error = String(state === 'error');
+      scanButton.textContent = state === 'scanning' ? '识别中…（点击重试）' : '识别当前二维码';
+      label.textContent = {
+        off: '二维码自动识别已关闭，可手动识别当前画面。',
+        waiting: '二维码：等待片头画面；从中途进入可拖回开头。',
+        scanning: '二维码：等待视频帧并识别中…',
+        found: '二维码：参数已读取并应用（含音频块长）。',
+        missing: '二维码：本轮未识别到有效参数。可暂停在二维码处，点击「识别当前二维码」重试。',
+        error: `二维码读取或应用失败：${error?.message ?? error ?? '未知原因'}。若含跨域限制提示，请保留错误信息。`,
+      }[state];
+    }
+    function initializeIntroReader() {
+      if (introReader) return true;
+      const components = { createIntroReader: typeof createIntroReader, scanIntro: typeof scanIntro, decodeQr: typeof decodeQr };
+      log('qr.reader-init', { mountId, ...components, ...mediaState(video) });
+      try {
+        if (Object.values(components).some((type) => type !== 'function')) throw new Error('二维码识别组件未加载完整');
+        introReader = createIntroReader(video, {
+          scan: scanIntro, decode: decodeQr, enabled: () => settings.autoIntro,
+          isCurrent: () => !dead && video.isConnected && videoPageKey(location.href) === mountedPageKey,
+          onHeader: applyIntroHeader, report: introReport, signal: listeners.signal,
+          trace: (event, details) => log(`qr.${event}`, { mountId, documentHidden: document.hidden, ...mediaState(video), ...details },
+            event.includes('error') || event.includes('failed') ? 'error' : event.includes('rejected') || event.includes('discarded') ? 'warn' : 'info'),
+        });
+        log('qr.reader-ready', { mountId });
+        return true;
+      } catch (error) {
+        log('qr.reader-init-failed', { mountId, error }, 'error');
+        introReport('error', error);
+        return false;
+      }
+    }
+    function applyIntroHeader(header) {
+      if (dead) return false;
       fill({
         ...settings,
         width: header.width,
@@ -11162,21 +11723,26 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
         audioMs: header.audioMs,
         seed: header.seed === null ? settings.seed : String(header.seed),
       });
-      if (!apply()) return;
+      if (!apply()) { log('qr.settings-rejected', { mountId }, 'warn'); return false; }
       if (!enabled) {
         enabled = true;
         startRenderer();
         updateToggle();
       }
+      if (!enabled) { log('qr.renderer-not-enabled', { mountId }, 'warn'); return false; }
       rememberPage(settings, 'intro');
       message(header.seed === null
         ? '已从片头二维码读取尺寸、tile、margin 和反色（片头不含 seed，沿用当前 seed）并启用还原，参数已记住。'
         : '已从片头二维码读取全部参数（含 seed）并启用还原，参数已记住。');
+      return true;
     }
     const audioStatus = shadow.getElementById('audio-status');
     let audioRestorer = null;
+    let audioSource = '';
     function audioReport(state, text) {
+      log('audio.state', { mountId, state, message: text }, state === 'error' ? 'error' : 'info');
       ui.dataset.audio = state;
+      if (audioRestorer) ui.dataset.audioMode = audioRestorer.mode;
       audioStatus.textContent = text;
       audioStatus.hidden = !text;
       audioStatus.dataset.error = String(state === 'error');
@@ -11184,25 +11750,39 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
     /** Keeps the audio restorer in line with `enabled` and the block length. */
     function syncAudio() {
       const wanted = !dead && enabled && settings.audioMs > 0 && Boolean(audio);
-      if (audioRestorer && (!wanted || audioRestorer.blockMs !== settings.audioMs)) {
+      const source = video.currentSrc || video.src || '';
+      if (audioRestorer && (audioRestorer.blockMs !== settings.audioMs || audioSource !== source)) {
         audioRestorer.destroy();
         audioRestorer = null;
       }
       if (!wanted) {
+        audioRestorer?.disable();
         audioReport('off', '');
         delete ui.dataset.audioMode;
         return;
       }
-      if (audioRestorer) return;
       const since = navigatedAt;
-      audioRestorer = audio.createAudioRestorer({
-        video,
-        blockMs: settings.audioMs,
-        host: shadow,
-        locate: (signal) => audio.locateAudio(video, audioUrls, { since, signal }),
-        report: audioReport,
-      });
-      ui.dataset.audioMode = audioRestorer.mode;
+      try {
+        if (audioRestorer) {
+          audioRestorer.enable();
+          ui.dataset.audioMode = audioRestorer.mode;
+          return;
+        }
+        audioSource = source;
+        audioRestorer = audio.createAudioRestorer({
+          video,
+          blockMs: settings.audioMs,
+          host: shadow,
+          locate: (signal) => audio.locateAudio(video, audioUrls, { since, signal }),
+          report: audioReport,
+          trace: (event, details) => log(`audio.${event}`, { mountId, ...details },
+            /error|rejected/.test(event) ? 'warn' : 'info'),
+        });
+        ui.dataset.audioMode = audioRestorer.mode;
+      } catch (error) {
+        log('audio.init-failed', { mountId, error }, 'error');
+        audioReport('error', `音频初始化失败：${error.message ?? error}`);
+      }
     }
     function updateToggle() {
       toggle.textContent = enabled ? '停用还原' : '启用还原';
@@ -11223,6 +11803,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
       hasDrawn = false;
     }
     function fail(error) {
+      log('renderer.error', { mountId, error }, 'error');
       enabled = false;
       stopRenderer();
       updateToggle();
@@ -11282,14 +11863,19 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
       syncAudio();
     }
     function apply() {
-      if (!form.reportValidity()) return false;
+      if (!form.reportValidity()) {
+        log('settings.form-invalid', { mountId, fields: [...form.elements]
+          .filter((element) => element.validity && !element.validity.valid).map((element) => element.name) }, 'warn');
+        return false;
+      }
+      const previousAutoIntro = settings.autoIntro;
       try {
         const values = Object.fromEntries(new FormData(form));
         values.invert = form.elements.namedItem('invert').checked;
         values.autoIntro = form.elements.namedItem('autoIntro').checked;
         values.audioMs = form.elements.namedItem('audioMs').value;
         settings = validateSettings(values, defaults);
-      } catch (error) { message(error.message, true); return false; }
+      } catch (error) { log('settings.validation-failed', { mountId, error }, 'warn'); message(error.message, true); return false; }
       settingsNotice = '';
       try { storage.set(STORAGE_KEY, settings); }
       catch { settingsNotice = '设置保存失败，本次会话仍有效'; }
@@ -11299,6 +11885,10 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
       else {
         message(`参数已应用；还原处于关闭状态。${settingsNotice}`);
         syncAudio();
+      }
+      if (settings.autoIntro !== previousAutoIntro) {
+        introReader?.reset();
+        void introReader?.request();
       }
       return true;
     }
@@ -11327,6 +11917,40 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
       } catch (error) { message(error.message, true); }
     });
     on(form, 'submit', (event) => { event.preventDefault(); apply(); });
+    on(scanButton, 'click', async () => {
+      log('qr.manual-click', { mountId, readerReady: Boolean(introReader), dead,
+        pageMatches: videoPageKey(location.href) === mountedPageKey, ...mediaState(video) });
+      // A click must respond even if a different component failed during mount.
+      introReport('scanning');
+      if (!initializeIntroReader()) return;
+      try {
+        const applied = await introReader.request({ manual: true });
+        log('qr.manual-complete', { mountId, applied, state: ui.dataset.intro });
+        if (!applied && ui.dataset.intro === 'scanning') introReport('error', new Error('识别任务提前结束，请复制诊断日志查看原因。'));
+      } catch (error) {
+        log('qr.manual-failed', { mountId, error }, 'error');
+        introReport('error', error);
+      }
+    });
+    const logDetails = shadow.getElementById('log-details');
+    const logText = shadow.getElementById('diagnostic-log');
+    const readLogs = () => diagnostics?.dump() ?? `VeilCast ${scriptVersion}: 诊断组件未加载，请检查控制台。`;
+    on(logDetails, 'toggle', () => { if (logDetails.open) logText.value = readLogs(); });
+    on(shadow.getElementById('copy-diagnostics'), 'click', async () => {
+      log('diagnostics.copy', { mountId });
+      const text = readLogs();
+      logText.value = text;
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('Clipboard API not available');
+        await navigator.clipboard.writeText(text);
+        shadow.getElementById('log-status').textContent = '诊断日志已复制。';
+      } catch {
+        logDetails.open = true;
+        logText.focus();
+        logText.select();
+        shadow.getElementById('log-status').textContent = '请按 Ctrl+C 复制下方已选中的日志。';
+      }
+    });
     on(toggle, 'click', () => {
       if (enabled) {
         enabled = false;
@@ -11345,24 +11969,23 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
       apply();
       // "Default" also drops this video's memory, so it stops restoring by itself.
       forgetPage();
-      introRead = false;
+      introReader?.reset();
     });
     // Do not let the player's shortcuts intercept typing or buttons in the panel.
     for (const name of ['keydown', 'keyup', 'keypress', 'pointerdown', 'click', 'dblclick']) {
       on(ui, name, (event) => event.stopPropagation());
     }
     for (const name of ['play', 'playing', 'loadeddata', 'seeked']) on(video, name, render);
-    // Seeking back into the first second is a second chance at the header,
-    // which is what happens when a viewer joins late and then rewinds.
-    for (const name of ['loadeddata', 'play', 'seeked']) on(video, name, () => { readIntroHeader(); });
-    if (video.readyState >= 2) readIntroHeader();
     for (const name of ['pause', 'ended']) on(video, name, () => { cancelFrame(); render(); });
     for (const name of ['loadstart', 'emptied']) on(video, name, () => {
+      audioRestorer?.destroy();
+      audioRestorer = null;
       cancelFrame();
       hasDrawn = false;
       canvas.style.visibility = 'hidden';
       if (enabled) message('视频源切换中…');
     });
+    on(video, 'loadeddata', syncAudio);
     on(video, 'seeking', () => { canvas.style.visibility = 'hidden'; });
     for (const name of ['loadedmetadata', 'resize']) on(video, name, () => {
       hasDrawn = false;
@@ -11386,6 +12009,10 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
     updateToggle();
     message(settingsNotice || '还原未启用；请核对 seed、tile、margin 和原始宽高，再点击「启用还原」。', Boolean(settingsNotice));
     if (settingsNotice) open();
+    log('ui.handlers-ready', { mountId, autoIntro: settings.autoIntro, restorationEnabled: enabled });
+    // Bind QR actions before starting optional media components. A synchronous
+    // audio initialization failure must not leave a visible but inert QR button.
+    initializeIntroReader();
     if (enabled) startRenderer();
     else syncAudio();
 
@@ -11399,6 +12026,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
         if (reopen) open();
       },
       dispose() {
+        log('player.dispose', { mountId });
         dead = true;
         open(false);
         listeners.abort();
@@ -11479,8 +12107,11 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, audio, default
   return { dispose };
 }
 
+const diagnostics = createDiagnostics({ version: "0.1.11" });
+try {
 installUserscript({
-  createRestorer, scanIntro, decodeQr, validateSettings, querySettings, descriptionSettings, videoPageKey,
+  createRestorer, scanIntro, decodeQr, createIntroReader, validateSettings, querySettings, descriptionSettings, videoPageKey,
+  diagnostics, introVideoState, scriptVersion: "0.1.11",
   iconUrl: "data:image/png;base64,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",
   pageSettings, rememberPageSettings, forgetPageSettings,
   audio: {
@@ -11491,4 +12122,5 @@ installUserscript({
   storage: { get: GM_getValue, set: GM_setValue },
   menu: { register: GM_registerMenuCommand, unregister: GM_unregisterMenuCommand },
 });
+} catch (error) { diagnostics.log('bootstrap.failed', { error }, 'error'); throw error; }
 })();

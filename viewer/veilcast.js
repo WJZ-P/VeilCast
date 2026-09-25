@@ -147,46 +147,114 @@ export function parseIntroHeader(text) {
  * Frames are downscaled to `maxWidth` before decoding; QR readers prefer
  * modest resolutions and it keeps the cost to a few milliseconds per frame.
  */
-export function scanIntro(video, { decode, untilSeconds = 1.5, intervalMs = 100, maxWidth = 640, maxMillis = 5000, signal } = {}) {
+export function scanIntro(video, { decode, untilSeconds = 1.5, intervalMs = 100, maxWidth = 640, maxMillis = 5000, signal, onProgress } = {}) {
   if (typeof decode !== "function") throw new Error("scanIntro needs a decode(imageData) function");
+  const emit = (event, details) => { try { onProgress?.(event, details); } catch { /* Diagnostic callbacks are nonessential. */ } };
+  if (signal?.aborted) {
+    emit('stop', { reason: 'already-aborted', frames: 0 });
+    return Promise.resolve(null);
+  }
   // A paused playhead inside the intro window never advances past it, so the
   // poll also needs a wall-clock bound to end on ordinary videos.
   const startedAt = Date.now();
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d", { willReadFrequently: true });
   return new Promise((resolve, reject) => {
-    let timer = 0;
-    const stop = (value) => {
-      clearTimeout(timer);
+    let timer = null;
+    let settled = false;
+    let attempts = 0;
+    let frames = 0;
+    let qrHits = 0;
+    let invalidHeaders = 0;
+    let lastWait = '';
+    let stage = 'create-canvas';
+    let canvas;
+    let context;
+    const summary = () => ({ attempts, frames, qrHits, invalidHeaders, elapsedMs: Date.now() - startedAt });
+    const cleanup = () => {
+      if (timer !== null) clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
+    };
+    const stop = (value, reason) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      emit('stop', { reason, ...summary() });
       resolve(value);
     };
-    const onAbort = () => stop(null);
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      emit('error', { stage, ...summary(), errorName: error.name, errorMessage: error.message });
+      reject(error);
+    };
+    const onAbort = () => stop(null, 'aborted');
     signal?.addEventListener("abort", onAbort, { once: true });
+    emit('begin', { untilSeconds: Number.isFinite(untilSeconds) ? untilSeconds : 'current-frame', maxWidth, intervalMs, maxMillis });
+    try {
+      canvas = document.createElement("canvas");
+      context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) throw new Error('二维码识别需要可用的 Canvas 2D 上下文。');
+    } catch (error) { fail(error); return; }
     const attempt = () => {
+      if (settled) return;
+      attempts++;
       try {
-        if (video.readyState >= 2 && video.videoWidth > 0) {
+        // Check the visit BEFORE sampling: a stale frame after seeking away
+        // must not apply an intro belonging to an obsolete scan.
+        if (signal?.aborted) return stop(null, 'aborted');
+        if (video.currentTime > untilSeconds) return stop(null, 'outside-intro-window');
+        if (Date.now() - startedAt >= maxMillis) return stop(null, 'timeout');
+        if (!video.seeking && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+          frames++;
+          lastWait = '';
           const scale = Math.min(1, maxWidth / video.videoWidth);
           canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
           canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+          stage = 'draw-video';
           context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const text = decode(context.getImageData(0, 0, canvas.width, canvas.height));
+          stage = 'read-pixels';
+          const image = context.getImageData(0, 0, canvas.width, canvas.height);
+          if (frames <= 2 || frames % 10 === 0) {
+            const bytes = image.data;
+            const stride = Math.max(4, Math.floor(bytes.length / 128 / 4) * 4);
+            let low = 255, high = 0, total = 0, count = 0;
+            for (let at = 0; at + 2 < bytes.length; at += stride) {
+              const luma = (bytes[at] + bytes[at + 1] + bytes[at + 2]) / 3;
+              low = Math.min(low, luma); high = Math.max(high, luma); total += luma; count++;
+            }
+            emit('frame-read', { frame: frames, canvasWidth: canvas.width, canvasHeight: canvas.height,
+              sampleMin: Math.round(low), sampleMax: Math.round(high), sampleMean: count ? Math.round(total / count) : null });
+          }
+          stage = 'decode-qr';
+          const beforeDecode = Date.now();
+          const text = decode(image);
           if (text) {
+            qrHits++;
+            if (qrHits <= 2 || qrHits % 10 === 0) emit('qr-detected', { length: typeof text === 'string' ? text.length : null,
+              numeric: typeof text === 'string' && /^[0-9]+$/.test(text.trim()), decodeMs: Date.now() - beforeDecode });
+            stage = 'parse-header';
             try {
-              return stop(parseIntroHeader(text.trim()));
-            } catch {
+              const header = parseIntroHeader(text.trim());
+              emit('header-valid', { format: [18, 38].includes(text.trim().length) ? 'v1-legacy' : 'v1-audio', width: header.width, height: header.height, tile: header.tile,
+                margin: header.margin, invert: header.invert, audioMs: header.audioMs, hasSeed: header.seed !== null });
+              return stop(header, 'found');
+            } catch (error) {
+              invalidHeaders++;
+              if (invalidHeaders <= 2 || invalidHeaders % 10 === 0) emit('header-rejected', { reason: error.message, length: text.length });
               // A QR code that is not ours; keep looking until the window closes.
             }
+          } else if (frames <= 2 || frames % 10 === 0) {
+            emit('no-qr', { frame: frames, decodeMs: Date.now() - beforeDecode });
           }
+        } else {
+          const reason = video.seeking ? 'seeking' : video.readyState < 2 ? 'frame-not-ready' : 'empty-video-size';
+          if (reason !== lastWait || attempts % 10 === 0) emit('waiting-frame', { reason, ...summary() });
+          lastWait = reason;
         }
-        if (video.ended || video.currentTime > untilSeconds || Date.now() - startedAt >= maxMillis) {
-          return stop(null);
-        }
+        if (video.ended) return stop(null, 'ended');
         timer = setTimeout(attempt, intervalMs);
       } catch (error) {
-        clearTimeout(timer);
-        signal?.removeEventListener("abort", onAbort);
-        reject(error);
+        fail(error);
       }
     };
     attempt();

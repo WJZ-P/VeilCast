@@ -110,6 +110,7 @@
     assert(panel().querySelector('[name=audioMs]').value === '250', 'the intro QR sets the audio block length');
     await until(() => ui().dataset.audio === 'ready' || ui().dataset.audio === 'error', 'the audio to be restored', 30000);
     assert(ui().dataset.audio === 'ready', `audio state ${ui().dataset.audio}: ${panel().getElementById('audio-status').textContent}`);
+    await until(() => ['captured', 'muted'].includes(ui().dataset.audioMode), 'successful audio handoff');
     assert(ui().dataset.audioMode === expectedMode, `silenced by ${ui().dataset.audioMode}, expected ${expectedMode}`);
     assert(video.muted === (expectedMode === 'muted'), `video.muted is ${video.muted} in ${expectedMode} mode`);
     const audio = panel().querySelector('audio[data-veilcast-audio]');
@@ -148,12 +149,19 @@
     // Turning restoration off hands the sound back to the page.
     panel().getElementById('toggle').click();
     await until(() => ui().dataset.enabled === 'false' && ui().dataset.audio === 'off', 'restoration to switch off');
-    assert(!panel().querySelector('audio[data-veilcast-audio]'), 'the restored audio element is gone');
+    assert(panel().querySelector('audio[data-veilcast-audio]') === audio && audio.paused, 'the restored audio is cached and paused');
     assert(!video.muted, 'the page gets its sound back');
     const resumed = video.currentTime;
     await sleep(500);
     assert(video.currentTime > resumed + 0.3, 'the video keeps playing after hand-back');
-    pass('停用还原后移除还原音轨，视频原声交还给页面');
+    pass('停用还原后暂停还原音轨，视频原声交还给页面');
+    const cachedSource = audio.src;
+    panel().getElementById('toggle').click();
+    await until(() => ui().dataset.enabled === 'true' && !audio.paused, 'cached audio to resume');
+    assert(panel().querySelector('audio[data-veilcast-audio]') === audio, 'reuse the same media element');
+    assert(audio.src === cachedSource, 'reuse the restored WAV');
+    assert(Math.abs(audio.currentTime - video.currentTime) < 0.25, 'resume at the current video position');
+    pass('再次启用复用同一还原音轨，并对齐当前播放进度');
 
     summary.dataset.result = 'pass';
     summary.textContent = `pass: ${steps.children.length} 项检查通过`;
