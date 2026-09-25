@@ -16,6 +16,8 @@ export interface PlanSettings {
   /** Reverse time inside audio blocks; `audioMs` is the block length. */
   audio: boolean;
   audioMs: number;
+  /** With `audio`: also mirror the spectrum, which hides whose voice it is. */
+  audioMirror: boolean;
 }
 
 interface Props {
@@ -155,6 +157,15 @@ export function PlanPanel({ settings, onChange, sizeFromFile }: Props) {
           />
           ms
         </span>
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 24, opacity: settings.audio ? 1 : 0.5 }}>
+        <input
+          type="checkbox"
+          checked={settings.audioMirror}
+          disabled={!settings.audio}
+          onChange={(e) => onChange({ ...settings, audioMirror: e.currentTarget.checked })}
+        />
+        频谱翻转（164 Hz–10 kHz 上下颠倒，听不出音色和性别；倒放只能打乱语序）
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <input

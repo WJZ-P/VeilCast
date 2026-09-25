@@ -11,5 +11,6 @@
   "gpu": true,
   "audio": false,
   "audioMs": 250,
+  "audioMirror": true,
   "autoIntro": true
 }

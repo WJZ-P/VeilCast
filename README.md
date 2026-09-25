@@ -14,13 +14,18 @@
 - **种子排列**：`seeded_permutation(tile_count, seed)`，splitmix64 + Fisher-Yates，
   两端各自生成，排列本身不传输；`seed_from_text` 把用户输入的数字或文字变成种子（FNV-1a 64）。
   `viewer/veilcast.js` 有逐位一致的 JS 实现。
-- **片头协议**：`IntroHeader` 把宽高、tile、margin、反色、音频块长和可选 seed 编成一串定长纯数字（22 或 42 位，
+- **片头协议**：`IntroHeader` 把宽高、tile、margin、反色、音频块长、频谱翻转和可选 seed 编成一串定长纯数字（22 或 42 位，
   末两位是 mod 97 校验），供桌面端渲染成 1 秒二维码片头、浏览器端扫码后自动配置。布局见 `src/header.rs`，
   `viewer/veilcast.js` 的 `encodeIntroHeader` / `parseIntroHeader` 逐位一致。
 - 同一计划复用于多帧，逐帧阶段零堆分配；调用方持有独立的输入、输出缓冲区。
 
+- **音频扰乱**：`reverse_blocks` 按固定时长块内倒放（打乱语序）；`SpectrumMirror` 把 164 Hz–10 kHz 上下颠倒
+  （f → 10171.875 Hz − f，藏住音高和音色，听不出是谁在说话）。两者都是自身的逆，加密时先倒放再翻转，还原时反过来。
+  翻转后的片头那一秒带一段 −40 dBFS 的同步扫频音（`sync_chirp`），浏览器端靠它精确对齐块栅格。
+  `viewer/veilcast.js` 有对应的 JS 实现。
+
 核心库不承担编解码和参数持久化；这些由 `app/` 桌面端和 `userscript/` 浏览器集成负责。
-暂不涉及：密码学密钥派生、音频扰乱、并行与 SIMD。
+暂不涉及：密码学密钥派生、并行与 SIMD。
 
 **分块重排是可逆扰乱，不是密码学加密。** 持有种子和参数的任何人都能还原。
 
@@ -121,7 +126,7 @@ psnr/ssim 的参考就此被改掉；Matroska 把 1/30 s 舍入到毫秒，按�
 默认 `seed="20040821"`、`tile=40`、`margin=0`；`tail` 作为 `tile` 的兼容别名。
 默认值与 Tauri 共用 `app/src/default-settings.json`，构建脚本内联 `viewer/veilcast.js`，不加载远程依赖。
 读到片头二维码后按 BVID 记住该视频的参数，下次打开（哪怕从中途开始）直接还原；把进度条拖回片头会重新扫码。
-桌面端开了音频加扰时，脚本会下载这个视频的音轨、在信号里找到块栅格、倒回来，并与画面同步播放。
+桌面端开了音频加扰时，脚本会下载这个视频的音轨、对齐块栅格、把频谱翻回来再倒回来，并与画面同步播放。
 
 安装、参数、限制和测试步骤见 [userscript/README.md](userscript/README.md)。
 

@@ -10,7 +10,8 @@
 //!
 //! [`reverse_blocks`] is the audio counterpart: it reverses time inside fixed
 //! blocks of interleaved PCM, which is its own inverse and leaves every sample
-//! value untouched.
+//! value untouched. [`SpectrumMirror`] turns the speech band upside down so a
+//! voice is no longer recognisable; it is also its own inverse.
 //!
 //! This is reversible scrambling, not cryptographic encryption. Key derivation
 //! and codecs are outside this crate's scope.
@@ -22,13 +23,15 @@ mod header;
 mod invert;
 mod permutation;
 mod shuffle;
+mod spectrum;
 mod yuv;
 
-pub use audio::{AudioError, block_frames, reverse_blocks};
+pub use audio::{AudioError, SYNC_CHIRP_LEAD, block_frames, reverse_blocks, sync_chirp};
 pub use error::Error;
 pub use frame::{FrameLayout, PixelFormat};
 pub use header::{HEADER_VERSION, HeaderError, IntroHeader};
 pub use invert::invert_yuv420_limited;
 pub use permutation::{seed_from_text, seeded_permutation};
 pub use shuffle::ShufflePlan;
+pub use spectrum::{MIRROR_SAMPLE_RATE, SpectrumMirror};
 pub use yuv::{Yuv420Layout, Yuv420Plan};

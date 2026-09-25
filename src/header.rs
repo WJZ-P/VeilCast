@@ -17,7 +17,7 @@ pub const HEADER_VERSION: u8 = 1;
 /// | 6      | 4      | source height, 1–9999                             |
 /// | 10     | 3      | tile, even, 2–998                                 |
 /// | 13     | 2      | margin, even, 0–98                                |
-/// | 15     | 1      | flags: bit 0 = invert, other bits must be zero    |
+/// | 15     | 1      | flags: bit 0 = invert, bit 1 = audio mirror       |
 /// | 16     | 4      | audio block length in ms, 0 = audio untouched     |
 /// | 20     | 20     | seed as a decimal `u64` (optional)                |
 /// | end    | 2      | checksum: all preceding digits as an integer mod 97 |
@@ -28,6 +28,8 @@ pub const HEADER_VERSION: u8 = 1;
 /// from the source size and tile. Historical version-1 codes were 18/38 digits
 /// without the audio field; readers accept those as audio_ms=0. Encoding always
 /// uses the current 22/42-digit layout. Future layout changes must bump the version.
+/// The audio mirror bit is only valid together with a non-zero audio block
+/// length; readers from before it existed reject such codes as a bad flags field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IntroHeader {
     pub width: usize,
@@ -38,6 +40,8 @@ pub struct IntroHeader {
     /// Block length of the audio time reversal, see [`crate::reverse_blocks`];
     /// 0 when the audio was left alone.
     pub audio_ms: u32,
+    /// The reversed audio was spectrum-mirrored as well, see [`crate::SpectrumMirror`].
+    pub audio_mirror: bool,
     pub seed: Option<u64>,
 }
 
@@ -82,7 +86,7 @@ impl IntroHeader {
             self.height,
             self.tile,
             self.margin,
-            u8::from(self.invert),
+            u8::from(self.invert) | u8::from(self.audio_mirror) << 1,
             self.audio_ms
         );
         if let Some(seed) = self.seed {
@@ -109,7 +113,7 @@ impl IntroHeader {
             return Err(HeaderError::Checksum);
         }
         let flags = field::<u8>(&text[15..16], "flags")?;
-        if flags > 1 {
+        if flags > 3 {
             return Err(HeaderError::Field("flags"));
         }
         let seed = if text.len() == 38 || text.len() == WITH_SEED {
@@ -123,12 +127,13 @@ impl IntroHeader {
             height: field(&text[6..10], "height")?,
             tile: field(&text[10..13], "tile")?,
             margin: field(&text[13..15], "margin")?,
-            invert: flags == 1,
+            invert: flags & 1 == 1,
             audio_ms: if legacy {
                 0
             } else {
                 field(&text[16..20], "audio")?
             },
+            audio_mirror: flags & 2 == 2,
             seed,
         };
         header.validate()?;
@@ -150,6 +155,9 @@ impl IntroHeader {
         }
         if self.audio_ms > 9999 {
             return Err(HeaderError::Field("audio"));
+        }
+        if self.audio_mirror && self.audio_ms == 0 {
+            return Err(HeaderError::Field("flags"));
         }
         Ok(())
     }

@@ -6,7 +6,15 @@ pub enum AudioError {
     EmptyFrame,
     EmptyBlock,
     SizeOverflow,
-    Truncated { frame_bytes: usize, actual: usize },
+    Truncated {
+        frame_bytes: usize,
+        actual: usize,
+    },
+    /// Interleaved input that is not a whole number of frames.
+    PartialFrame {
+        channels: usize,
+        samples: usize,
+    },
 }
 
 impl fmt::Display for AudioError {
@@ -22,11 +30,40 @@ impl fmt::Display for AudioError {
                 f,
                 "{actual} bytes is not a whole number of {frame_bytes}-byte frames"
             ),
+            Self::PartialFrame { channels, samples } => write!(
+                f,
+                "{samples} samples is not a whole number of {channels}-channel frames"
+            ),
         }
     }
 }
 
 impl std::error::Error for AudioError {}
+
+/// Samples from the start of [`sync_chirp`] to the first content sample.
+pub const SYNC_CHIRP_LEAD: usize = 36_000;
+
+/// The 48 kHz sync marker a mirrored upload carries in its silent intro
+/// second, ending 0.25 s before the content: a 0.5 s linear sweep from 1 kHz
+/// to 8 kHz at −40 dBFS with 10 ms fades.
+///
+/// Mirrored audio hides the block grid from blind search (the energy near
+/// 10 kHz makes every sample step large, and a lossy codec buries the jumps),
+/// so a viewer cross-correlates this instead: it pins the content start to
+/// the sample through AAC at 64 kbit/s. `viewer/veilcast.js` has the same formula.
+pub fn sync_chirp() -> Vec<f32> {
+    const LENGTH: usize = 24_000;
+    const FADE: f64 = 480.0;
+    let duration = LENGTH as f64 / 48_000.0;
+    (0..LENGTH)
+        .map(|n| {
+            let t = n as f64 / 48_000.0;
+            let fade = (n as f64 / FADE).min((LENGTH - n) as f64 / FADE).min(1.0);
+            let phase = 1_000.0 * t + 7_000.0 * t * t / (2.0 * duration);
+            (0.01 * fade * (2.0 * std::f64::consts::PI * phase).sin()) as f32
+        })
+        .collect()
+}
 
 /// Frames per block for a block length in milliseconds.
 ///

@@ -38,6 +38,8 @@ export interface PlanHint {
   seed: string | null;
   /** Audio block length in ms, 0 = untouched. */
   audio_ms: number;
+  /** The audio spectrum was mirrored too; false for files from before the mirror. */
+  audio_mirror: boolean;
 }
 
 export interface VideoInfo {
@@ -69,6 +71,8 @@ export interface JobParams extends PlanParams {
   gpu: boolean;
   /** Reverse time inside audio blocks of this many ms; 0 leaves the audio alone. Self-inverse. */
   audioMs: number;
+  /** With audioMs: also mirror the 164 Hz–10 kHz spectrum so voices are unrecognisable. Self-inverse. */
+  audioMirror: boolean;
 }
 
 export interface Progress {
@@ -87,6 +91,8 @@ export interface JobResult {
   encoder: string;
   /** Audio block length applied; 0 when the audio was left alone. */
   audio_ms: number;
+  /** Whether the spectrum mirror ran as well. */
+  audio_mirror: boolean;
 }
 
 /** The hardware encoder `gpu` jobs will use on this machine. */

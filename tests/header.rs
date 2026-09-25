@@ -8,6 +8,7 @@ fn sample() -> IntroHeader {
         margin: 0,
         invert: true,
         audio_ms: 0,
+        audio_mirror: false,
         seed: None,
     }
 }
@@ -39,6 +40,20 @@ fn known_answer_vectors_pin_the_layout() {
         .unwrap(),
         "012560137004000102500985959262365026294691"
     );
+    let mirrored = IntroHeader {
+        audio_mirror: true,
+        ..with_audio
+    };
+    assert_eq!(mirrored.encode().unwrap(), "0125601370040003025091");
+    assert_eq!(
+        IntroHeader {
+            seed: with_seed.seed,
+            ..mirrored
+        }
+        .encode()
+        .unwrap(),
+        "012560137004000302500985959262365026294647"
+    );
     let portrait = IntroHeader {
         width: 720,
         height: 1280,
@@ -46,9 +61,20 @@ fn known_answer_vectors_pin_the_layout() {
         margin: 4,
         invert: false,
         audio_ms: 0,
+        audio_mirror: false,
         seed: None,
     };
     assert_eq!(portrait.encode().unwrap(), "0107201280016040000016");
+    assert_eq!(
+        IntroHeader {
+            audio_ms: 250,
+            audio_mirror: true,
+            ..portrait
+        }
+        .encode()
+        .unwrap(),
+        "0107201280016042025090"
+    );
 }
 
 #[test]
@@ -71,10 +97,17 @@ fn parse_inverts_encode() {
             margin: 98,
             invert: true,
             audio_ms: 9999,
+            audio_mirror: true,
             seed: Some(1),
         },
         IntroHeader {
             audio_ms: 250,
+            ..sample()
+        },
+        IntroHeader {
+            audio_ms: 50,
+            audio_mirror: true,
+            invert: false,
             ..sample()
         },
     ] {
@@ -103,9 +136,14 @@ fn rejects_malformed_strings() {
         IntroHeader::parse("0225601370040001000009").unwrap_err(),
         HeaderError::Version(2)
     );
-    // Flags 2 (reserved bit) — checksum recomputed for the altered payload.
+    // Flags 2 (audio mirror) without audio, and flags 4 (reserved bit) —
+    // checksums recomputed for the altered payloads.
     assert_eq!(
         IntroHeader::parse("0125601370040002000026").unwrap_err(),
+        HeaderError::Field("flags")
+    );
+    assert_eq!(
+        IntroHeader::parse("0125601370040004025003").unwrap_err(),
         HeaderError::Field("flags")
     );
     // Seed larger than u64::MAX.
@@ -133,6 +171,7 @@ fn legacy_headers_without_audio_remain_readable() {
         margin: 4,
         invert: false,
         audio_ms: 0,
+        audio_mirror: false,
         seed: None,
     };
     assert_eq!(IntroHeader::parse("010720128001604088").unwrap(), portrait);
@@ -204,6 +243,13 @@ fn rejects_out_of_range_fields_before_encoding() {
                 ..sample()
             },
             "margin",
+        ),
+        (
+            IntroHeader {
+                audio_mirror: true,
+                ..sample()
+            },
+            "flags",
         ),
     ] {
         assert_eq!(header.encode().unwrap_err(), HeaderError::Field(name));

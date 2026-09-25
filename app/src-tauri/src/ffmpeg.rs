@@ -10,8 +10,9 @@ use std::thread;
 
 use serde::{Deserialize, Serialize};
 use veilcast_core::{
-    IntroHeader, Yuv420Layout, Yuv420Plan, block_frames, invert_yuv420_limited, reverse_blocks,
-    seed_from_text, seeded_permutation,
+    IntroHeader, MIRROR_SAMPLE_RATE, SYNC_CHIRP_LEAD, SpectrumMirror, Yuv420Layout, Yuv420Plan,
+    block_frames, invert_yuv420_limited, reverse_blocks, seed_from_text, seeded_permutation,
+    sync_chirp,
 };
 
 use crate::intro;
@@ -21,8 +22,8 @@ use crate::intro;
 const METADATA_PREFIX: &str = "veilcast/1";
 
 /// Audio is pinned to 48 kHz so the block grid is the same number of samples
-/// on both ends, whatever the source used.
-const AUDIO_RATE: u32 = 48_000;
+/// on both ends, whatever the source used; the spectrum mirror requires it too.
+const AUDIO_RATE: u32 = MIRROR_SAMPLE_RATE;
 /// One sample per channel, 16-bit: the transform only moves whole frames, so
 /// the integer format costs nothing and halves the scratch file.
 const AUDIO_SAMPLE_BYTES: usize = 2;
@@ -224,6 +225,8 @@ pub struct PlanHint {
     /// Audio block length in milliseconds, 0 when the audio was left alone.
     /// Both the metadata tag and the intro QR code carry it.
     pub audio_ms: u32,
+    /// The audio was spectrum-mirrored as well; absent from older files.
+    pub audio_mirror: bool,
     /// Numeric seed carried by the intro QR code, as a decimal string.
     pub seed: Option<String>,
 }
@@ -238,6 +241,7 @@ impl From<IntroHeader> for PlanHint {
             invert: header.invert,
             intro_ms: (intro::INTRO_SECONDS * 1000.0) as u32,
             audio_ms: header.audio_ms,
+            audio_mirror: header.audio_mirror,
             seed: header.seed.map(|seed| seed.to_string()),
         }
     }
@@ -364,6 +368,7 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
         invert: false,
         intro_ms: 0,
         audio_ms: 0,
+        audio_mirror: false,
         seed: None,
     };
     let mut source = None;
@@ -382,13 +387,8 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
             "margin" => hint.margin = value,
             "intro" => hint.intro_ms = u32::try_from(value).ok()?,
             "audio" => hint.audio_ms = u32::try_from(value).ok()?,
-            "invert" => {
-                hint.invert = match value {
-                    0 => false,
-                    1 => true,
-                    _ => return None,
-                };
-            }
+            "invert" => hint.invert = flag(value)?,
+            "mirror" => hint.audio_mirror = flag(value)?,
             _ => {}
         }
     }
@@ -398,6 +398,14 @@ fn parse_hint(comment: &str) -> Option<PlanHint> {
         hint.height = height;
     }
     (hint.width > 0 && hint.height > 0 && hint.tile > 0).then_some(hint)
+}
+
+fn flag(value: usize) -> Option<bool> {
+    match value {
+        0 => Some(false),
+        1 => Some(true),
+        _ => None,
+    }
 }
 
 /// Decodes one frame from the middle of the intro window as greyscale and
@@ -509,6 +517,10 @@ pub struct JobParams {
     /// The same value scrambles and restores, see [`scramble_audio`].
     #[serde(default)]
     pub audio_ms: u32,
+    /// With `audio_ms`: also mirror the audio spectrum, see [`SpectrumMirror`].
+    /// Omitted by older clients, and absent from older files: reversal only.
+    #[serde(default)]
+    pub audio_mirror: bool,
     /// Encode with the machine's hardware encoder (see [`hardware_encoder`]);
     /// falls back to libx264 when none initialises.
     #[serde(default)]
@@ -538,6 +550,8 @@ pub struct JobResult {
     /// Audio block length applied, 0 when the audio was left alone (not
     /// requested, or the input has no audio track).
     pub audio_ms: u32,
+    /// Whether the spectrum mirror ran as well.
+    pub audio_mirror: bool,
 }
 
 /// A scratch file that is removed when the job holding it ends, either way.
@@ -573,11 +587,22 @@ impl Drop for TempFile {
 /// restoring trims it before, which leaves the block grid anchored to the
 /// content in both directions. Decoding to 16-bit PCM is lossless here
 /// because only whole frames ever move.
+///
+/// With `mirror`, the [`SpectrumMirror`] runs after the reversal when
+/// scrambling and before it when restoring, anchored at the content's first
+/// sample like the block grid. In that order a viewer that has to find the
+/// grid first can mirror back with a guessed anchor: a wrong guess only
+/// rotates the phase of the whole track and the reversal's jumps stay put.
+/// Loud, rhythmic content through a low-bitrate codec still defeats that
+/// search, so a mirrored intro second carries [`sync_chirp`] instead of pure
+/// silence. The mirror step is not lossless: it rounds back to 16 bits and
+/// clips anything it pushes past full scale.
 pub fn scramble_audio(
     tools: &Tools,
     input: &str,
     mode: Mode,
     block_ms: u32,
+    mirror: bool,
     channels: usize,
     intro_seconds: Option<f64>,
 ) -> Result<TempFile, String> {
@@ -621,7 +646,8 @@ pub fn scramble_audio(
         "-i",
         "-",
     ]);
-    if let (Some(seconds), Mode::Scramble) = (intro_seconds, mode) {
+    // A mirrored track writes its own intro second (silence and the sync chirp) below.
+    if let (Some(seconds), Mode::Scramble, false) = (intro_seconds, mode, mirror) {
         encoder.args([
             "-af",
             &format!("adelay={}:all=1", (seconds * 1000.0) as u32),
@@ -647,8 +673,21 @@ pub fn scramble_audio(
 
     // One block per read, so a whole block is always in hand; the short final
     // read is left unreversed by `reverse_blocks`.
-    let mut buffer = vec![0u8; block * frame_bytes];
+    let block_bytes = block * frame_bytes;
+    let mut buffer = vec![0u8; block_bytes];
+    let mut mirror = if mirror {
+        Some(SpectrumMirror::new(channels).map_err(|e| e.to_string())?)
+    } else {
+        None
+    };
+    let (mut samples, mut mirrored) = (Vec::new(), Vec::new());
+    // Restoring with the mirror: its output lags, so it queues here until
+    // whole blocks can be reversed.
+    let mut queued = Vec::new();
     let pump = (|| -> Result<(), String> {
+        if let (Some(seconds), Mode::Scramble, Some(_)) = (intro_seconds, mode, &mirror) {
+            write_pcm(&mut pcm_out, &sync_intro(seconds, channels))?;
+        }
         loop {
             let filled =
                 fill(&mut pcm_in, &mut buffer).map_err(|e| format!("读取音频失败: {e}"))?;
@@ -657,10 +696,40 @@ pub fn scramble_audio(
             }
             let whole = filled - filled % frame_bytes;
             let chunk = &mut buffer[..whole];
-            reverse_blocks(chunk, frame_bytes, block).map_err(|e| e.to_string())?;
-            pcm_out
-                .write_all(chunk)
-                .map_err(|e| format!("写入音频失败: {e}"))?;
+            let Some(mirror) = mirror.as_mut() else {
+                reverse_blocks(chunk, frame_bytes, block).map_err(|e| e.to_string())?;
+                write_pcm(&mut pcm_out, chunk)?;
+                continue;
+            };
+            if mode == Mode::Scramble {
+                reverse_blocks(chunk, frame_bytes, block).map_err(|e| e.to_string())?;
+            }
+            pcm_to_f32(chunk, &mut samples);
+            mirrored.clear();
+            mirror
+                .process(&samples, &mut mirrored)
+                .map_err(|e| e.to_string())?;
+            queued.extend(f32_to_pcm(&mirrored));
+            if mode == Mode::Restore {
+                let whole = queued.len() - queued.len() % block_bytes;
+                reverse_blocks(&mut queued[..whole], frame_bytes, block)
+                    .map_err(|e| e.to_string())?;
+                write_pcm(&mut pcm_out, &queued[..whole])?;
+                queued.drain(..whole);
+            } else {
+                write_pcm(&mut pcm_out, &queued)?;
+                queued.clear();
+            }
+        }
+        if let Some(mirror) = mirror.take() {
+            mirrored.clear();
+            mirror.finish(&mut mirrored);
+            queued.extend(f32_to_pcm(&mirrored));
+            if mode == Mode::Restore {
+                // Whole blocks reversed, a trailing partial block as is.
+                reverse_blocks(&mut queued, frame_bytes, block).map_err(|e| e.to_string())?;
+            }
+            write_pcm(&mut pcm_out, &queued)?;
         }
         Ok(())
     })();
@@ -688,6 +757,39 @@ pub fn scramble_audio(
         return Err(format!("音频编码失败: {}", encoder_errors.trim()));
     }
     Ok(target)
+}
+
+/// The intro second of a mirrored track: silence with [`sync_chirp`] ending
+/// [`SYNC_CHIRP_LEAD`] samples before the content, on every channel.
+fn sync_intro(seconds: f64, channels: usize) -> Vec<u8> {
+    let frames = (seconds * f64::from(AUDIO_RATE)).round() as usize;
+    let mut intro = vec![0.0f32; frames * channels];
+    let chirp = sync_chirp();
+    let at = frames.saturating_sub(SYNC_CHIRP_LEAD);
+    for (n, &value) in chirp.iter().enumerate().take(frames - at) {
+        intro[(at + n) * channels..(at + n + 1) * channels].fill(value);
+    }
+    f32_to_pcm(&intro).collect()
+}
+
+fn write_pcm(out: &mut impl Write, bytes: &[u8]) -> Result<(), String> {
+    out.write_all(bytes)
+        .map_err(|e| format!("写入音频失败: {e}"))
+}
+
+fn pcm_to_f32(bytes: &[u8], samples: &mut Vec<f32>) {
+    samples.clear();
+    samples.extend(
+        bytes
+            .chunks_exact(AUDIO_SAMPLE_BYTES)
+            .map(|b| f32::from(i16::from_le_bytes([b[0], b[1]])) / 32768.0),
+    );
+}
+
+fn f32_to_pcm(samples: &[f32]) -> impl Iterator<Item = u8> + '_ {
+    samples
+        .iter()
+        .flat_map(|&s| ((s * 32768.0).round().clamp(-32768.0, 32767.0) as i16).to_le_bytes())
 }
 
 /// Runs one scramble or restore job to completion, reporting progress as frames go through.
@@ -725,6 +827,12 @@ pub fn run_job(
     } else {
         0
     };
+    let audio_ms = if params.audio_ms > 0 && info.has_audio {
+        params.audio_ms
+    } else {
+        0
+    };
+    let audio_mirror = audio_ms > 0 && params.audio_mirror;
     let intro_frame = if params.intro && params.mode == Mode::Scramble {
         let header = IntroHeader {
             width: params.width,
@@ -732,11 +840,8 @@ pub fn run_job(
             tile: params.tile,
             margin: params.margin,
             invert: params.invert,
-            audio_ms: if params.audio_ms > 0 && info.has_audio {
-                params.audio_ms
-            } else {
-                0
-            },
+            audio_ms,
+            audio_mirror,
             seed: params.seed_in_intro.then(|| seed_from_text(&params.seed)),
         };
         Some(intro::render_frame(&header, scrambled)?)
@@ -746,12 +851,13 @@ pub fn run_job(
 
     // Audio runs in its own pass and reaches the encoder as a temporary
     // lossless file, so the video pipe below stays exactly as it was.
-    let audio_temp = if params.audio_ms > 0 && info.has_audio {
+    let audio_temp = if audio_ms > 0 {
         Some(scramble_audio(
             tools,
             &params.input,
             params.mode,
-            params.audio_ms,
+            audio_ms,
+            audio_mirror,
             info.audio_channels,
             (intro_frames > 0).then_some(intro::INTRO_SECONDS),
         )?)
@@ -876,7 +982,7 @@ pub fn run_job(
         encoder.args([
             "-metadata",
             &format!(
-                "comment={METADATA_PREFIX} width={} height={} tile={} margin={} source={}x{} invert={} intro={} audio={}",
+                "comment={METADATA_PREFIX} width={} height={} tile={} margin={} source={}x{} invert={} intro={} audio={} mirror={}",
                 work.width,
                 work.height,
                 params.tile,
@@ -885,7 +991,8 @@ pub fn run_job(
                 params.height,
                 u8::from(params.invert),
                 if intro_frames > 0 { (intro::INTRO_SECONDS * 1000.0) as u32 } else { 0 },
-                if audio_temp.is_some() { params.audio_ms } else { 0 }
+                audio_ms,
+                u8::from(audio_mirror)
             ),
         ]);
     }
@@ -994,11 +1101,8 @@ pub fn run_job(
         upload_width: scrambled.width(),
         upload_height: scrambled.height(),
         encoder: codec.to_string(),
-        audio_ms: if audio_temp.is_some() {
-            params.audio_ms
-        } else {
-            0
-        },
+        audio_ms,
+        audio_mirror,
     })
 }
 
@@ -1079,6 +1183,28 @@ mod tests {
         assert!(parse_hint(&format!("{legacy} invert=1")).unwrap().invert);
         assert!(!parse_hint(&format!("{legacy} invert=0")).unwrap().invert);
         assert!(parse_hint(&format!("{legacy} invert=2")).is_none());
+    }
+
+    #[test]
+    fn files_without_a_mirror_tag_were_reversed_only() {
+        let reversed = "veilcast/1 width=80 height=48 tile=16 margin=4 source=78x46 audio=50";
+        let hint = parse_hint(reversed).unwrap();
+        assert_eq!((hint.audio_ms, hint.audio_mirror), (50, false));
+        assert!(
+            parse_hint(&format!("{reversed} mirror=1"))
+                .unwrap()
+                .audio_mirror
+        );
+        assert!(parse_hint(&format!("{reversed} mirror=2")).is_none());
+        let value = serde_json::json!({
+            "input": "test.mp4", "outputDir": "", "mode": "restore",
+            "width": 80, "height": 48, "tile": 16, "margin": 4, "seed": "42", "audioMs": 50
+        });
+        assert!(
+            !serde_json::from_value::<JobParams>(value)
+                .unwrap()
+                .audio_mirror
+        );
     }
 
     #[test]

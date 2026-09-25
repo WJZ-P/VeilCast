@@ -1,4 +1,25 @@
-use veilcast_core::{AudioError, block_frames, reverse_blocks};
+use veilcast_core::{AudioError, SYNC_CHIRP_LEAD, block_frames, reverse_blocks, sync_chirp};
+
+#[test]
+fn the_sync_chirp_matches_the_viewer() {
+    // viewer/veilcast.test.mjs pins the same samples.
+    let chirp = sync_chirp();
+    assert_eq!((chirp.len(), SYNC_CHIRP_LEAD), (24_000, 36_000));
+    for (index, expected) in [
+        (0, 0.0),
+        (240, 0.004_455_032_8),
+        (1_000, -0.007_223_64),
+        (23_999, -0.000_018_042),
+    ] {
+        assert!(
+            (chirp[index] - expected).abs() < 1e-7,
+            "sample {index}: {}",
+            chirp[index]
+        );
+    }
+    let peak = chirp.iter().fold(0.0f32, |peak, v| peak.max(v.abs()));
+    assert!((0.0099..=0.01).contains(&peak), "peak {peak}");
+}
 
 /// Two interleaved 16-bit channels: frames are `[left, right]` little-endian.
 fn stereo(frames: &[(i16, i16)]) -> Vec<u8> {

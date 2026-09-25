@@ -99,7 +99,7 @@ function App() {
                 intro: hint.intro_ms > 0,
                 // null: only the QR code was readable, which cannot say; keep the user's value.
                 audio: hint.audio_ms > 0,
-                ...(hint.audio_ms > 0 ? { audioMs: hint.audio_ms } : {}),
+                ...(hint.audio_ms > 0 ? { audioMs: hint.audio_ms, audioMirror: hint.audio_mirror } : {}),
                 ...(hint.seed ? { seed: hint.seed } : {}),
               }
             : {}),
@@ -139,6 +139,7 @@ function App() {
           seedInIntro: settings.intro && settings.seedInIntro,
           gpu: settings.gpu,
           audioMs: settings.audio && settings.audioMs > 0 ? settings.audioMs : 0,
+          audioMirror: settings.audio && settings.audioMirror,
         },
         (progress) => setJob((current) => ({ ...current, progress })),
       );
@@ -147,7 +148,7 @@ function App() {
       const url = await snapshotUrl(result.output, seconds);
       showSnapshots([
         ...snapshots.slice(0, 1),
-        { url, caption: `${mode === "scramble" ? "加密输出" : "解密输出"} tile ${settings.tile} margin ${settings.margin} · 反色${settings.invert ? "开" : "关"} · 音频${result.audio_ms ? `倒放 ${result.audio_ms} ms` : "未处理"}` },
+        { url, caption: `${mode === "scramble" ? "加密输出" : "解密输出"} tile ${settings.tile} margin ${settings.margin} · 反色${settings.invert ? "开" : "关"} · 音频${result.audio_ms ? `${result.audio_mirror ? "翻转 + " : ""}倒放 ${result.audio_ms} ms` : "未处理"}` },
       ]);
     } catch (reason) {
       setJob((current) => ({ ...current, running: false, error: String(reason) }));

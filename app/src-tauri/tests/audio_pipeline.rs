@@ -87,7 +87,16 @@ fn the_audio_pass_restores_every_sample() {
     assert_eq!(original.len(), 158_400 * 2);
 
     let source_str = source.to_string_lossy();
-    let scrambled = scramble_audio(&tools, &source_str, Mode::Scramble, 250, 2, Some(1.0)).unwrap();
+    let scrambled = scramble_audio(
+        &tools,
+        &source_str,
+        Mode::Scramble,
+        250,
+        false,
+        2,
+        Some(1.0),
+    )
+    .unwrap();
     let scrambled_pcm = pcm(scrambled.path());
     assert_eq!(
         scrambled_pcm.len(),
@@ -103,8 +112,16 @@ fn the_audio_pass_restores_every_sample() {
     assert_eq!(content[156_000 * 2..], original[156_000 * 2..]);
 
     let scrambled_str = scrambled.path().to_string_lossy().into_owned();
-    let restored =
-        scramble_audio(&tools, &scrambled_str, Mode::Restore, 250, 2, Some(1.0)).unwrap();
+    let restored = scramble_audio(
+        &tools,
+        &scrambled_str,
+        Mode::Restore,
+        250,
+        false,
+        2,
+        Some(1.0),
+    )
+    .unwrap();
     assert_eq!(
         pcm(restored.path()),
         original,
@@ -115,6 +132,82 @@ fn the_audio_pass_restores_every_sample() {
     let path = restored.path().to_path_buf();
     drop(restored);
     assert!(!path.exists());
+}
+
+/// Mirror and reversal together: the intro second stays silent, the length
+/// is kept, the upload is unlike the source, and restoring undoes both.
+#[test]
+fn the_mirrored_audio_pass_round_trips() {
+    let Ok(tools) = Tools::locate() else {
+        eprintln!("skipped: ffmpeg not found");
+        return;
+    };
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("audio-mirror-pass");
+    std::fs::create_dir_all(&dir).unwrap();
+    // A voice-like harmonic tone on the left, pink noise on the right.
+    let source = dir.join("source.wav");
+    let status = Command::new(ffmpeg())
+        .args(["-v", "error", "-y"])
+        .args([
+            "-f",
+            "lavfi",
+            "-i",
+            "aevalsrc=0.2*sin(2*PI*220*t)+0.1*sin(2*PI*440*t)+0.05*sin(2*PI*880*t):s=48000:d=4.1",
+        ])
+        .args([
+            "-f",
+            "lavfi",
+            "-i",
+            "anoisesrc=d=4.1:c=pink:r=48000:a=0.3:seed=7",
+        ])
+        .args([
+            "-filter_complex",
+            "[0][1]join=inputs=2:channel_layout=stereo",
+        ])
+        .args(["-c:a", "pcm_s16le"])
+        .arg(&source)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let original = pcm(&source);
+
+    let source_str = source.to_string_lossy();
+    let scrambled =
+        scramble_audio(&tools, &source_str, Mode::Scramble, 250, true, 2, Some(1.0)).unwrap();
+    let scrambled_pcm = pcm(scrambled.path());
+    assert_eq!(scrambled_pcm.len(), original.len() + 48_000 * 2);
+    // The intro second is silence with the −40 dBFS sync chirp in 0.25–0.75 s.
+    let intro = &scrambled_pcm[..48_000 * 2];
+    assert!(
+        intro[..12_000 * 2]
+            .iter()
+            .chain(&intro[36_000 * 2..])
+            .all(|&s| s == 0)
+    );
+    let peak = intro.iter().map(|s| s.unsigned_abs()).max().unwrap();
+    assert!((300..=330).contains(&peak), "chirp peak {peak}");
+    let exposed = snr_db(&original, &scrambled_pcm[48_000 * 2..]);
+    assert!(
+        exposed < 1.0,
+        "the upload must not resemble the source: {exposed:.1} dB"
+    );
+
+    let scrambled_str = scrambled.path().to_string_lossy().into_owned();
+    let restored = scramble_audio(
+        &tools,
+        &scrambled_str,
+        Mode::Restore,
+        250,
+        true,
+        2,
+        Some(1.0),
+    )
+    .unwrap();
+    let restored_pcm = pcm(restored.path());
+    assert_eq!(restored_pcm.len(), original.len());
+    let snr = snr_db(&original, &restored_pcm);
+    eprintln!("mirrored audio pass: upload {exposed:.1} dB, round trip {snr:.1} dB");
+    assert!(snr > 30.0, "round trip {snr:.1} dB");
 }
 
 /// The whole job, AAC included: the restored track must come back as close to
@@ -132,7 +225,7 @@ fn reversed_audio_survives_the_full_job() {
     let info = probe(&tools, SAMPLE).unwrap();
     assert_eq!(info.audio_channels, 2);
 
-    let job = |name: &str, audio_ms: u32| {
+    let job = |name: &str, audio_ms: u32, audio_mirror: bool| {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("audio-job-{name}"));
         std::fs::create_dir_all(&dir).unwrap();
         let params = |input: &str, mode| JobParams {
@@ -149,16 +242,19 @@ fn reversed_audio_survives_the_full_job() {
             seed_in_intro: false,
             gpu: false,
             audio_ms,
+            audio_mirror,
         };
         let scrambled = run_job(&tools, &params(SAMPLE, Mode::Scramble), |_| {}).unwrap();
         assert_eq!(
-            scrambled.audio_ms, audio_ms,
+            (scrambled.audio_ms, scrambled.audio_mirror),
+            (audio_ms, audio_mirror),
             "the result reports the audio pass"
         );
         let hint = probe(&tools, &scrambled.output).unwrap().hint.unwrap();
         assert_eq!(
-            hint.audio_ms, audio_ms,
-            "the metadata tag records the block length"
+            (hint.audio_ms, hint.audio_mirror),
+            (audio_ms, audio_mirror),
+            "the metadata tag records the block length and the mirror"
         );
         let restored = run_job(&tools, &params(&scrambled.output, Mode::Restore), |_| {}).unwrap();
         (
@@ -168,11 +264,11 @@ fn reversed_audio_survives_the_full_job() {
     };
 
     let original = pcm(Path::new(SAMPLE));
-    let (_, plain) = job("plain", 0);
-    let (scrambled, restored) = job("reversed", 250);
+    let (_, plain) = job("plain", 0, false);
+    let (scrambled, restored) = job("mirrored", 250, true);
 
     // What survives an upload: no metadata, audio re-encoded by the platform.
-    // The intro QR alone must still say the audio was reversed. The two files
+    // The intro QR alone must still say how the audio was scrambled. The two files
     // are also the fixtures for userscript/tests/audio.html: B站 serves audio
     // as a separate fragmented .m4s, which browsers decode without trimming
     // the AAC priming samples.
@@ -222,6 +318,7 @@ fn reversed_audio_survives_the_full_job() {
     let uploaded = probe(&tools, &dir.join("platform.mp4").to_string_lossy()).unwrap();
     let hint = uploaded.hint.expect("the intro QR survives the upload");
     assert_eq!(hint.audio_ms, 250, "the intro QR carries the block length");
+    assert!(hint.audio_mirror, "the intro QR carries the mirror flag");
 
     let restored_info = probe(&tools, &restored.to_string_lossy()).unwrap();
     assert_eq!(restored_info.audio_channels, 2);
@@ -232,12 +329,12 @@ fn reversed_audio_survives_the_full_job() {
     // The upload, intro second skipped, against the source it hides.
     let exposed = snr_db(&original, &pcm(&scrambled)[48_000 * 2..]);
     eprintln!(
-        "SNR vs source: plain re-encode {baseline:.1} dB, reversed round trip {reversed:.1} dB, upload {exposed:.1} dB"
+        "SNR vs source: plain re-encode {baseline:.1} dB, mirrored + reversed round trip {reversed:.1} dB, upload {exposed:.1} dB"
     );
     assert!(baseline > 15.0, "plain re-encode baseline {baseline:.1} dB");
     assert!(
         reversed > baseline - 3.0,
-        "reversal must cost at most 3 dB over a plain re-encode: {reversed:.1} vs {baseline:.1} dB"
+        "scrambling must cost at most 3 dB over a plain re-encode: {reversed:.1} vs {baseline:.1} dB"
     );
     assert!(
         exposed < 3.0,
