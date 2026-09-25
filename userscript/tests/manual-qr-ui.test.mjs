@@ -193,10 +193,10 @@ test('a rejected form identifies the blocking field in diagnostics', async (t) =
   assert.ok(r.diagnostics.dump().includes('"fields":["audioMs"]'));
 });
 
-test('the actual toggle pauses/reuses audio; block length and source changes destroy it', (t) => {
+test('the actual toggle pauses/reuses audio; block length, mirror and source changes destroy it', (t) => {
   const handles = [];
-  const r = setup(t, { audioFactory: ({ blockMs }) => {
-    const handle = { blockMs, mode: 'muted', enables: 0, disables: 0, destroys: 0,
+  const r = setup(t, { audioFactory: ({ blockMs, mirror }) => {
+    const handle = { blockMs, mirror, mode: 'muted', enables: 0, disables: 0, destroys: 0,
       enable() { this.enables++; }, disable() { this.disables++; }, destroy() { this.destroys++; } };
     handles.push(handle);
     return handle;
@@ -212,9 +212,14 @@ test('the actual toggle pauses/reuses audio; block length and source changes des
   r.panel.form.dispatchEvent(new Event('submit', { cancelable: true }));
   assert.equal(handles[0].destroys, 1);
   assert.equal(handles[1].blockMs, 500);
-  r.video.dispatchEvent(new Event('loadstart'));
+  assert.equal(handles[1].mirror, false, 'a remembered page without the field was reversed only');
+  r.panel.form.elements.namedItem('audioMirror').checked = true;
+  r.panel.form.dispatchEvent(new Event('submit', { cancelable: true }));
   assert.equal(handles[1].destroys, 1);
+  assert.equal(handles[2].mirror, true);
+  r.video.dispatchEvent(new Event('loadstart'));
+  assert.equal(handles[2].destroys, 1);
   r.video.currentSrc = 'blob:replacement';
   r.video.dispatchEvent(new Event('loadeddata'));
-  assert.equal(handles.length, 3);
+  assert.equal(handles.length, 4);
 });

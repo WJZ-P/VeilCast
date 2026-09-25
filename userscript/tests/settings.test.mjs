@@ -12,7 +12,7 @@ const defaults = userscriptDefaults(JSON.parse(await readFile(new URL('../../app
 
 test('defaults come from the same JSON as the Tauri app', async () => {
   const params = validateSettings({}, defaults);
-  assert.deepEqual(params, { width: 720, height: 1280, tile: 40, margin: 0, seed: '20040821', invert: false, autoIntro: true, audioMs: 0 });
+  assert.deepEqual(params, { width: 720, height: 1280, tile: 40, margin: 0, seed: '20040821', invert: false, autoIntro: true, audioMs: 0, audioMirror: false });
   const app = await readFile(new URL('../../app/src/App.tsx', import.meta.url), 'utf8');
   assert.match(app, /import defaultSettings from "\.\/default-settings\.json"/);
 });
@@ -54,7 +54,7 @@ test('page identity changes for a new video or part, not a quality setting', () 
 test('explicit description import matches the supplied video parameters', () => {
   const text = '原始宽2560，高1370 tile 16 margin 4 seed 20260916\n混淆前6M，混淆后60M，解码后19M';
   assert.deepEqual(validateSettings(descriptionSettings(text), defaults), {
-    width: 2560, height: 1370, tile: 16, margin: 4, seed: '20260916', invert: false, autoIntro: true, audioMs: 0,
+    width: 2560, height: 1370, tile: 16, margin: 4, seed: '20260916', invert: false, autoIntro: true, audioMs: 0, audioMirror: false,
   });
   assert.equal(descriptionSettings('原始宽度: 720 高度：1280 tail=40 margin=0 seed=+007').seed, '+007');
 });
@@ -144,6 +144,19 @@ test('audio block length: 0 is off, the desktop switch maps onto it', () => {
   // A page remembers its block length with the rest of the plan.
   const pages = rememberPageSettings({}, '/video/BV1/?p=1', validateSettings({ audioMs: 250 }, defaults), 'intro');
   assert.equal(pageSettings(pages, '/video/BV1/?p=1').settings.audioMs, 250);
+});
+
+test('the audio mirror is a strict boolean; anything saved before it existed was reversal only', () => {
+  const app = { width: 720, height: 1280, tile: 40, margin: 0, seed: 's', invert: false, audio: true, audioMs: 250, audioMirror: true };
+  assert.equal(userscriptDefaults(app).audioMirror, true);
+  assert.equal(userscriptDefaults({ ...app, audio: false }).audioMirror, false);
+  assert.equal(validateSettings({ audioMirror: 'true' }, defaults).audioMirror, true);
+  assert.equal(validateSettings({ audioMirror: false }, { ...defaults, audioMirror: true }).audioMirror, false);
+  for (const bad of ['on', 1, 'yes']) assert.throws(() => validateSettings({ audioMirror: bad }, defaults), /频谱翻转/);
+  const mirrored = rememberPageSettings({}, '/video/BV2/?p=1', validateSettings({ audioMs: 250, audioMirror: true }, defaults), 'intro');
+  assert.equal(pageSettings(mirrored, '/video/BV2/?p=1').settings.audioMirror, true);
+  const legacy = { '/video/BV3/?p=1': { settings: { width: 720, height: 1280, tile: 40, margin: 0, seed: 's', invert: false, audioMs: 50 }, source: 'intro' } };
+  assert.equal(pageSettings(legacy, '/video/BV3/?p=1').settings.audioMirror, false);
 });
 
 test('the audio track is the latest Bilibili audio request since navigation', () => {

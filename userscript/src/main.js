@@ -146,6 +146,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, createI
         </div>
         <small>填写加密前的尺寸，而非当前播放清晰度；五项参数需与加密端一致。</small>
         <label>音频块长 ms（0 = 不处理音频）<input name="audioMs" type="number" min="0" max="9999" step="1" required></label>
+        <label class="check"><input name="audioMirror" type="checkbox">音频频谱翻转（与加密端保持一致）</label>
         <label class="check"><input name="invert" type="checkbox">反色（与加密端保持一致）</label>
         <label class="check"><input name="autoIntro" type="checkbox">自动读取片头二维码并启用还原</label>
         <button id="from-description" type="button">读取简介参数</button>
@@ -214,6 +215,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, createI
     function fill(values = settings) {
       for (const name of ['seed', 'tile', 'margin', 'width', 'height', 'audioMs']) form.elements.namedItem(name).value = values[name];
       form.elements.namedItem('invert').checked = values.invert;
+      form.elements.namedItem('audioMirror').checked = values.audioMirror;
       form.elements.namedItem('autoIntro').checked = values.autoIntro;
     }
     // The first second of a VeilCast upload is a QR code carrying the plan.
@@ -267,6 +269,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, createI
         margin: header.margin,
         invert: header.invert,
         audioMs: header.audioMs,
+        audioMirror: header.audioMirror,
         seed: header.seed === null ? settings.seed : String(header.seed),
       });
       if (!apply()) { log('qr.settings-rejected', { mountId }, 'warn'); return false; }
@@ -297,7 +300,8 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, createI
     function syncAudio() {
       const wanted = !dead && enabled && settings.audioMs > 0 && Boolean(audio);
       const source = video.currentSrc || video.src || '';
-      if (audioRestorer && (audioRestorer.blockMs !== settings.audioMs || audioSource !== source)) {
+      if (audioRestorer && (audioRestorer.blockMs !== settings.audioMs || audioRestorer.mirror !== settings.audioMirror
+        || audioSource !== source)) {
         audioRestorer.destroy();
         audioRestorer = null;
       }
@@ -318,6 +322,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, createI
         audioRestorer = audio.createAudioRestorer({
           video,
           blockMs: settings.audioMs,
+          mirror: settings.audioMirror,
           host: shadow,
           locate: (signal) => audio.locateAudio(video, audioUrls, { since, signal }),
           report: audioReport,
@@ -418,6 +423,7 @@ export function installUserscript({ createRestorer, scanIntro, decodeQr, createI
       try {
         const values = Object.fromEntries(new FormData(form));
         values.invert = form.elements.namedItem('invert').checked;
+        values.audioMirror = form.elements.namedItem('audioMirror').checked;
         values.autoIntro = form.elements.namedItem('autoIntro').checked;
         values.audioMs = form.elements.namedItem('audioMs').value;
         settings = validateSettings(values, defaults);

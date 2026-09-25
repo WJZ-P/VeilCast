@@ -94,7 +94,7 @@ export function createIntroReader(video, {
       }
       // This callback is synchronous. Latch only AFTER the UI accepts the plan.
       note('apply-start', { scanId: run.id, width: header.width, height: header.height, tile: header.tile,
-        margin: header.margin, invert: header.invert, audioMs: header.audioMs, hasSeed: header.seed !== null });
+        margin: header.margin, invert: header.invert, audioMs: header.audioMs, audioMirror: header.audioMirror, hasSeed: header.seed !== null });
       if (onHeader(header) === false) {
         note('apply-rejected', { scanId: run.id });
         state('error', new Error('片头参数未成功应用，请检查设置后重试。'));

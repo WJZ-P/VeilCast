@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VeilCast Bilibili Restorer
 // @namespace    veilcast.local
-// @version      0.1.11
+// @version      0.2.0
 // @description  使用与桌面端一致的 seed、tile、margin 在播放器上叠加还原画面
 // @icon         data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAJjElEQVR42rVXaWxcVxX+7n3LLB57vMXxEuwkzeosbhNUtWYJpk3ZWgStAqKogpQCP0gR/EQIIqB/gsQP1KIKqNqq/CA4SguECgrCraFpmrURSe0sxrUTr7HH23g885Z7L+fe98Z26O+O/ea9d9+bs3znnO+cy7HyYTjQbeGD/kQ62IpS85F05kpfbfjcU3fDSnyF2c4Gxm0ORu9zi/4durTB9T2dGYvlWNw8h6Rbbr5oVUJJEYkWdJa+kmEwKMPFo9ePHjq9WieLjTDK2z7z019ayex3uVsBrZgMMML1WStnlr4mQ/Qa3dOFORjnRoJSkgzT0mRkhFLmGjI0Z1FagFiafeZa93eeLANgGUj6jqnWB378KztTf4h+FgiyVyn6JolMCsnoLESgb/UinekgiZKe0ZL+E0r4dB1IGXpShZ6Q0qd3aU1EB4SvrVB2qvLe6o2djTN9r72qdZsQtHzyB11ORXVPWCz5crFowSGgjXMci5aLgPyprVoDJ0nI2Ekym1Cw3ch77bLxmrzVsIuAHC7Cm5kBKY4Q0AfMO8rJpIWTdN0gP3nf4Ikf9dh63XLtb0ovgNWSRmXnXcy7OowpPwtPMHzeL2BTTQO6370MT9XDTVkmzooJMiROIR1AaWKNsJgnmKfQ9In1sFM2GSHobaMbTirJpi/cwNJkiRxIPEHLkQEKdrsKQ8hCiVvfegg8twTvtXn4sgnJwcv42Z6dGM95eGXoEuoTaQqAxbi0oDjXck3YIUJyNEBpcgRND25G+/cfjvJSO0iHbfRIjD52hKswQQawHcZ57NtnV9kbnmTJdL0/dFN6XokVkrUQvWcgxrK4cvUGqqdKcEQ9Lo6dBE/WUGSiRDSqJSWySbQA4RIlWXALbd97BH6yEqVCCWEgEJZ8WEkHA0f/jpsnLqh0UwsXvjc7l5n5jV2uRUbx5Jk6JF8/g46H92NkbyNStcMo1DXj2eOXkF27F+54M8LFKXA3bTym30QxULrsfPjT48h8ZBPUh5pQmPfguJaJjq5mrxTgxp/fQrK+OcJEG5/JKB4Vgy4jDruqGvnxRYz2DWNu/T2YcOswf9dWTOzYjeH0BhRa71dhfgIqDGBCJkIqBUp2SjzhLZH3M8g8cC8KeaDkMzoAzyPjKhyMvnEOi+/Nwa2pMy4zZnyHHWdnRARUlXaqDqNP/Rpy826CLwev7x4EQ5xiW0Dz3ruZP/xXBIs5OFkXLOSmCJQKEOQm4Wxrhly/FYWZALbDIu/p7JeAG8d74WYaDI9ofdHT2AAdQoMlhZMlqmAtzSNR9XHMTWRV0xt/ZC2dKdwcGYFz/m0EIo+gUIRdURfZTgWhQp+FhUlUdj2K4hKtLVHGJ6lEpSSlLqbPXkb+0giq2jpiwoqZbxmBVe2AygOMpC72n0JxxzdQ2Hgfag9tw+zlHNa9OYRQfRR9f3iRym0BViprqCCcnQKas4TaHhSnQ2LqiBs0udsU7tFXemAnasCchFHOmVzuAssGGG7TZjEFnm6EM3sGbXe2s8LsDIZ+O4JBrIU9U0KaklGktwD5QZOMGr1wYQzsU59FMSR4lzziFQsWyamqdSEGhrFw5irSjbtIfpyzOgBKmhseE5Th8Yi1yADqBVy4sMUC5jo/ja8OZHF8qBlN87cwv/YSKjpqiNfnqPKKEPkZiKwN0d4JLwf4ASUzia5zJTJEnGN/6qGKqaAyzJBoTlWrGVOW6auMgFr5NqymYFU3Yva5vyCzexwnZomME61wE+sQPLgdat8uBP39sKZvQVAoZFcnQp6FWvRQk7VQ45ITBHd+OIe5f19EsmFz5H3EGzApr1bngCESuaoxEjcSkRTyY/h5uh51azbguWvd+G8NkPvhO8jX7gT1DlgD70BVugh3dcGbBWorOCopCkFJIlELzLzaS0YxWI3VJJGv7gkR4reFAKa/mQeqzA1Jgn6gHxurd+DOlofgHnkCqf1dqDg1BXtxE1UDIbB1O/x0M6qUhwrC3vf0jx34M0uY63kLifpW45jJ/Fhx1KbV7TxgoDGL3NxTo6UYNuDC+BU80/c3FGerMPryLeTrtsPOhNRw6Fx5Dk7Hx5AkwklQY/KLgOtQk6q2MXfyJGSuBGtjXQz/ih6NhJS3I6BUnIBq+ZBm6FBWFmdZP/Jf3ILWwRHswntIg6AfOg/V8QXKtg7YBeoDPokyc4dFJSqR7+1Fonqdad0aTY0u4gHlfQhQCTKm4jJElKW6VCT90K1swHT/IHnCUeC7UN+xWVnXUoz5Y7A+vAUq71CP83VxG6M5EU/xP2chx3Ow1t8BU20sjrmUy/mmbjNAadOFYUKqGaPcUJyMsjkMHIyc/x2CO3ZiorvASteJsitoyEk0ged9KEO7ysintoDFN/8JJ9NIPcfRaphRaJSLyAiaHZQe01ZCEA2RSugGE1/L6GUdMquiEWp+AOGXKeEyLYrPjoOtb6A8oJ+QwpASLyxqKeT99auQw0Owq5v13Mmi4U3ERyxbaV3lHOjVqOhxTy6TkYotjl4kQ1IZWDmF8OWLBO0a8OZ1kBtpnvACJgKaL4pMBUV6Tk6VzvVQH6hR3E1S7unUErprGjlKd0/jZGREZMA+TTx67hRxgoQrRpgXdcZSKLJNSFFmJ+snGL+/CZKyXbd1g0CJhg6VgDc+SW3vXdg1rUwDqEI90wYGWT3nUutmZaSxXAW9vYKUhpHCMIZIGxEuI2BwTlXDzS/Bzv8DYg8xUpoEUG9BKGg2SZiWK0+9QGxZrZSV1GN0pLwMvwiZkW+UmxwItG4zqqnAv8p4cqepRUrkiA50KrJoANUg0TWva4Pz3L9oKgrgf+lxqPGQkUbC3VPO6SMsSfMDX9NuFC13OPIakUMqGlxDqjmlDbmi3zBVQDP885YIHjGEyFHWTBfBMnWa92hjYrW2I9X9NjBPRuz/NvXaHBKnf8HSqgC7btsyzUb5JBgz3lIvUcYQWg5IP1VQ6D8fj4OHqRJ+Ims6Dr5EA+djtLPwo+0Y8SpNLyreIUW7JNvsFTRLy+mb8InjWWEJjq9zpNXsEeIRqWxAPK4H+qw0U1nccsPC9EvTp5/+Gg4f5rdtzWp2H3yBJSq/Tv046lzagFi5mYJ5vCfURhAaKBYoEclAPaSW+wfi7ZiKYh9nY2yMB1lceHH6zNMHyxPQ+zan2Y7Hu0jZozQatWmFBg09QGpFkXI9NikzDXIr7qtlOYZGWcT35LEKNQlpyCm9wmHS/vvcmWdf///N6art+QGOY8fEB7s9P2CRDlkeQv4HbSPGCxudjpEAAAAASUVORK5CYII=
 // @icon64       data:image/png;base64,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
@@ -17,7 +17,7 @@
 // Generated by userscript/build.mjs; edit source files, then rebuild.
 (() => {
 'use strict';
-console.info('[VeilCast 0.1.11] script.loading');
+console.info('[VeilCast 0.2.0] script.loading');
 // Source: ../viewer/vendor/jsQR.js (Apache-2.0, see viewer/vendor/jsQR.LICENSE)
 const jsQR = (() => {
   const module = { exports: {} };
@@ -10211,25 +10211,28 @@ function headerChecksum(digits) {
   return String(r).padStart(2, "0");
 }
 
-function validateHeaderFields({ width, height, tile, margin, audioMs }) {
+function validateHeaderFields({ width, height, tile, margin, audioMs, audioMirror = false }) {
   if (!Number.isInteger(width) || width < 1 || width > 9999) throw new Error("header field width is out of range");
   if (!Number.isInteger(height) || height < 1 || height > 9999) throw new Error("header field height is out of range");
   if (!Number.isInteger(tile) || tile < 2 || tile > 998 || tile % 2 !== 0) throw new Error("header field tile is out of range");
   if (!Number.isInteger(margin) || margin < 0 || margin > 98 || margin % 2 !== 0) throw new Error("header field margin is out of range");
   if (!Number.isInteger(audioMs) || audioMs < 0 || audioMs > 9999) throw new Error("header field audio is out of range");
+  if (audioMirror && audioMs === 0) throw new Error("header field flags is out of range");
 }
 
 /**
  * Digit string of the intro header, identical to IntroHeader::encode in Rust:
  * version(2) width(4) height(4) tile(3) margin(2) flags(1) audio(4) [seed(20)] check(2).
+ * Flags: bit 0 invert, bit 1 audio spectrum mirror (only with audio).
  * `audioMs` is the audio block length (0 = audio untouched). `seed` is the
  * numeric seed (bigint/number) or null; the text a user typed goes through
  * seedFromText first.
  */
-function encodeIntroHeader({ width, height, tile, margin, invert = false, audioMs = 0, seed = null }) {
-  validateHeaderFields({ width, height, tile, margin, audioMs });
+function encodeIntroHeader({ width, height, tile, margin, invert = false, audioMs = 0, audioMirror = false, seed = null }) {
+  validateHeaderFields({ width, height, tile, margin, audioMs, audioMirror });
   const pad = (value, digits) => String(value).padStart(digits, "0");
-  let digits = pad(HEADER_VERSION, 2) + pad(width, 4) + pad(height, 4) + pad(tile, 3) + pad(margin, 2) + (invert ? "1" : "0") + pad(audioMs, 4);
+  const flags = (invert ? 1 : 0) | (audioMirror ? 2 : 0);
+  let digits = pad(HEADER_VERSION, 2) + pad(width, 4) + pad(height, 4) + pad(tile, 3) + pad(margin, 2) + flags + pad(audioMs, 4);
   if (seed !== null && seed !== undefined) {
     const value = BigInt(seed);
     if (value < 0n || value > MASK64) throw new Error("header field seed is out of range");
@@ -10249,7 +10252,7 @@ function parseIntroHeader(text) {
   if (version !== HEADER_VERSION) throw new Error(`unknown header version ${version}`);
   if (text.slice(-2) !== headerChecksum(text.slice(0, -2))) throw new Error("header checksum mismatch");
   const flags = Number(text[15]);
-  if (flags > 1) throw new Error("header field flags is out of range");
+  if (flags > 3) throw new Error("header field flags is out of range");
   let seed = null;
   if (text.length === 38 || text.length === 42) {
     const seedOffset = legacy ? 16 : 20;
@@ -10261,8 +10264,9 @@ function parseIntroHeader(text) {
     height: Number(text.slice(6, 10)),
     tile: Number(text.slice(10, 13)),
     margin: Number(text.slice(13, 15)),
-    invert: flags === 1,
+    invert: (flags & 1) === 1,
     audioMs: legacy ? 0 : Number(text.slice(16, 20)),
+    audioMirror: (flags & 2) === 2,
     seed,
   };
   validateHeaderFields(header);
@@ -10366,7 +10370,7 @@ function scanIntro(video, { decode, untilSeconds = 1.5, intervalMs = 100, maxWid
             try {
               const header = parseIntroHeader(text.trim());
               emit('header-valid', { format: [18, 38].includes(text.trim().length) ? 'v1-legacy' : 'v1-audio', width: header.width, height: header.height, tile: header.tile,
-                margin: header.margin, invert: header.invert, audioMs: header.audioMs, hasSeed: header.seed !== null });
+                margin: header.margin, invert: header.invert, audioMs: header.audioMs, audioMirror: header.audioMirror, hasSeed: header.seed !== null });
               return stop(header, 'found');
             } catch (error) {
               invalidHeaders++;
@@ -10416,6 +10420,191 @@ function reverseAudioBlocks(channels, { sampleRate, blockMs, start = 0 }) {
   return blocks;
 }
 
+// Spectrum mirror geometry, shared with veilcast_core::SpectrumMirror: a
+// 16384-point STFT (2.93 Hz bins at 48 kHz) with sqrt-Hann windows at half
+// overlap, mirroring bins 56..=3416 (164 Hz–10 kHz) onto each other, bin
+// k <-> MIRROR_CENTER - k. Long frames keep the band edges sharp; with 2048
+// points the edges leak enough to cost ~15 dB of round-trip SNR.
+const MIRROR_SIZE = 16384;
+const MIRROR_HOP = MIRROR_SIZE / 2;
+const MIRROR_LOW = 56;
+const MIRROR_HIGH = 3416;
+const MIRROR_CENTER = MIRROR_LOW + MIRROR_HIGH;
+let mirrorTables = null;
+
+function mirrorFft() {
+  if (mirrorTables) return mirrorTables;
+  const n = MIRROR_SIZE;
+  const bits = Math.log2(n);
+  const reversed = new Uint32Array(n);
+  for (let i = 0; i < n; i++) {
+    let r = 0;
+    for (let b = 0; b < bits; b++) r |= ((i >> b) & 1) << (bits - 1 - b);
+    reversed[i] = r;
+  }
+  const cos = new Float64Array(n / 2), sin = new Float64Array(n / 2);
+  for (let i = 0; i < n / 2; i++) { cos[i] = Math.cos((2 * Math.PI * i) / n); sin[i] = -Math.sin((2 * Math.PI * i) / n); }
+  const window = Float64Array.from({ length: n }, (_, m) => Math.sin((Math.PI * m) / n));
+  // In place, forward (e^-i); the inverse runs it on the conjugate.
+  const transform = (re, im) => {
+    for (let i = 0; i < n; i++) {
+      const j = reversed[i];
+      if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const half = len >> 1, step = n / len;
+      for (let i = 0; i < n; i += len) {
+        for (let k = 0; k < half; k++) {
+          const wr = cos[k * step], wi = sin[k * step];
+          const a = i + k, b = a + half;
+          const tr = re[b] * wr - im[b] * wi, ti = re[b] * wi + im[b] * wr;
+          re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+        }
+      }
+    }
+  };
+  return (mirrorTables = { window, transform });
+}
+
+/**
+ * Mirrors one packed frame spectrum (two real channels as re + i·im) in
+ * place: bin k takes e^{iφ}·Z[N-(C-k)] and bin N-k takes e^{-iφ}·Z[C-k].
+ * On a real channel that is exactly a 2·cos carrier at C bins followed by
+ * the band limit, i.e. f -> C·fs/N - f; applying it twice is the identity.
+ */
+function mirrorFrame(re, im, phase, scratch) {
+  const n = MIRROR_SIZE;
+  const c = Math.cos(phase), s = Math.sin(phase);
+  for (let k = MIRROR_LOW; k <= MIRROR_HIGH; k++) {
+    scratch[4 * k] = re[k]; scratch[4 * k + 1] = im[k];
+    scratch[4 * k + 2] = re[n - k]; scratch[4 * k + 3] = im[n - k];
+  }
+  for (let k = MIRROR_LOW; k <= MIRROR_HIGH; k++) {
+    const j = MIRROR_CENTER - k;
+    const nr = scratch[4 * j + 2], ni = scratch[4 * j + 3]; // Z[N - j]
+    const pr = scratch[4 * j], pi = scratch[4 * j + 1]; // Z[j]
+    re[k] = c * nr - s * ni; im[k] = s * nr + c * ni;
+    re[n - k] = c * pr + s * pi; im[n - k] = c * pi - s * pr;
+  }
+}
+
+function* mirrorSteps(channels, anchor, sliceFrames) {
+  const scratch = new Float64Array(4 * (MIRROR_HIGH + 1));
+  yield* stftSteps(channels, sliceFrames, (re, im, start) => {
+    // Carrier phase at this frame's first sample, measured from the anchor.
+    const offset = (((start - anchor) % MIRROR_SIZE) + MIRROR_SIZE) % MIRROR_SIZE;
+    mirrorFrame(re, im, (2 * Math.PI * ((MIRROR_CENTER * offset) % MIRROR_SIZE)) / MIRROR_SIZE, scratch);
+  });
+}
+
+/** In place, planar channels: each frame's packed spectrum goes through `edit(re, im, start)`. */
+function* stftSteps(channels, sliceFrames, edit) {
+  const { window, transform } = mirrorFft();
+  const n = MIRROR_SIZE, hop = MIRROR_HOP;
+  const length = channels[0]?.length ?? 0;
+  const re = new Float64Array(n), im = new Float64Array(n);
+  let frames = 0;
+  for (let pair = 0; pair < channels.length; pair += 2) {
+    const a = channels[pair], b = channels[pair + 1];
+    const tailA = new Float64Array(hop), tailB = new Float64Array(hop);
+    // Frames start one hop before the data so every sample sees two windows.
+    for (let start = -hop; start < length; start += hop) {
+      for (let m = 0; m < n; m++) {
+        const at = start + m;
+        const inside = at >= 0 && at < length;
+        re[m] = inside ? a[at] * window[m] : 0;
+        im[m] = inside && b ? b[at] * window[m] : 0;
+      }
+      transform(re, im);
+      edit(re, im, start);
+      for (let m = 0; m < n; m++) im[m] = -im[m];
+      transform(re, im);
+      // Samples [start, start + hop) now have both window contributions; the
+      // next frame reads from start + hop on, so they can be written in place.
+      for (let m = 0; m < hop; m++) {
+        const at = start + m;
+        const valueA = tailA[m] + (re[m] / n) * window[m];
+        const valueB = tailB[m] - (im[m] / n) * window[m];
+        tailA[m] = (re[m + hop] / n) * window[m + hop];
+        tailB[m] = -(im[m + hop] / n) * window[m + hop];
+        if (at >= 0 && at < length) {
+          a[at] = valueA;
+          if (b) b[at] = valueB;
+        }
+      }
+      if (++frames % sliceFrames === 0) yield;
+    }
+  }
+}
+
+/**
+ * Mirrors the 164 Hz–10 kHz band of planar audio in place (f -> 10172 Hz - f),
+ * the browser counterpart of veilcast_core::SpectrumMirror; like it, its own
+ * inverse up to window-edge rounding. Bass and treble outside the band pass
+ * through. `anchor` is the sample where the carrier phase is zero: the
+ * content start, so that both ends agree on it after any container offset.
+ * 48 kHz only. `channels` is an array of Float32Array.
+ */
+function mirrorAudioSpectrum(channels, { anchor = 0 } = {}) {
+  if (!Number.isSafeInteger(anchor)) throw new Error("mirror anchor must be an integer");
+  for (const _ of mirrorSteps(channels, anchor, Infinity)) { /* runs to completion */ }
+}
+
+/** mirrorAudioSpectrum that yields to the event loop between slices; rejects with AbortError when `signal` aborts. */
+async function mirrorAudioSpectrumAsync(channels, { anchor = 0, signal, sliceFrames = 64 } = {}) {
+  if (!Number.isSafeInteger(anchor)) throw new Error("mirror anchor must be an integer");
+  for (const _ of mirrorSteps(channels, anchor, sliceFrames)) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (signal?.aborted) throw new DOMException("mirror aborted", "AbortError");
+  }
+}
+
+/** Samples from the start of the sync chirp to the first content sample; veilcast_core::SYNC_CHIRP_LEAD. */
+const SYNC_CHIRP_LEAD = 36000;
+let syncChirpCache = null;
+
+/** veilcast_core::sync_chirp: 0.5 s, 1→8 kHz, −40 dBFS, 10 ms fades, 48 kHz. */
+function syncChirp() {
+  if (syncChirpCache) return syncChirpCache;
+  const length = 24000, fade = 480, duration = length / 48000;
+  return (syncChirpCache = Float32Array.from({ length }, (_, n) => {
+    const t = n / 48000;
+    const phase = 1000 * t + (7000 * t * t) / (2 * duration);
+    return 0.01 * Math.min(n / fade, (length - n) / fade, 1) * Math.sin(2 * Math.PI * phase);
+  }));
+}
+
+/**
+ * Locates the content start of a mirrored upload by the sync chirp in its
+ * intro, searching `searchMs` either side of `nominalStart`. `confidence` is
+ * the normalised correlation peak over its mean magnitude: a few hundred for
+ * a real chirp, near 1 when there is none.
+ */
+function findAudioSync(channels, { sampleRate, nominalStart, searchMs = 100 }) {
+  if (sampleRate !== 48000) throw new Error("the sync chirp is defined at 48 kHz");
+  const chirp = syncChirp();
+  const length = channels[0]?.length ?? 0;
+  const mono = new Float64Array(length);
+  for (const data of channels) for (let i = 0; i < length; i++) mono[i] += data[i];
+  let chirpEnergy = 0;
+  for (const v of chirp) chirpEnergy += v * v;
+  const reach = Math.round((sampleRate * searchMs) / 1000);
+  const expected = nominalStart - SYNC_CHIRP_LEAD;
+  let best = nominalStart, bestScore = -Infinity, total = 0, candidates = 0;
+  for (let lag = -reach; lag <= reach; lag++) {
+    const at = expected + lag;
+    if (at < 0 || at + chirp.length > length) continue;
+    let dot = 0, energy = 0;
+    for (let n = 0; n < chirp.length; n++) { const v = mono[at + n]; dot += v * chirp[n]; energy += v * v; }
+    const score = energy > 0 ? dot / Math.sqrt(chirpEnergy * energy) : 0;
+    total += Math.abs(score);
+    candidates++;
+    if (score > bestScore) { bestScore = score; best = at + SYNC_CHIRP_LEAD; }
+  }
+  const mean = total / Math.max(1, candidates);
+  return { start: best, offset: best - nominalStart, confidence: mean > 0 ? bestScore / mean : 0 };
+}
+
 /**
  * Finds where the reversed blocks really start in a decoded track.
  *
@@ -10428,8 +10617,21 @@ function reverseAudioBlocks(channels, { sampleRate, blockMs, start = 0 }) {
  * `nominalStart`, capped below half a block because the grid repeats every
  * block. `confidence` is the peak over the mean score: near 1 means there
  * was nothing to find (silence, or audio that was never reversed).
+ *
+ * `mirrored`: the reversed content was spectrum-mirrored afterwards. Its
+ * energy then sits near 10 kHz, every sample step is large and the boundary
+ * jumps no longer stand out, so the search runs on a copy of the first
+ * `mirrorProbeSeconds` mirrored back with the nominal anchor instead. An
+ * anchor that is off by the unknown offset only rotates the phase of the
+ * whole probe, which leaves the reversal's jumps where they are.
  */
-function findAudioGrid(channels, { sampleRate, blockMs, nominalStart, searchMs = 100, maxBlocks = 400 }) {
+function findAudioGrid(channels, { sampleRate, blockMs, nominalStart, searchMs = 100, maxBlocks = 400, mirrored = false, mirrorProbeSeconds = 30 }) {
+  if (mirrored) {
+    const end = Math.min(channels[0]?.length ?? 0, nominalStart + Math.round(sampleRate * mirrorProbeSeconds));
+    const probe = channels.map((data) => data.slice(0, end));
+    mirrorAudioSpectrum(probe, { anchor: nominalStart });
+    channels = probe;
+  }
   const block = audioBlockSamples(sampleRate, blockMs);
   const length = channels[0]?.length ?? 0;
   const reach = Math.min(Math.round((sampleRate * searchMs) / 1000), Math.floor((block - 1) / 2));
@@ -10667,8 +10869,8 @@ function createRestorer(gl, params) {
  * keeps a block length even while its audio switch is off; here 0 means off.
  */
 function userscriptDefaults(app) {
-  const { width, height, tile, margin, seed, invert, autoIntro = true, audio = false, audioMs = 0 } = app;
-  return { width, height, tile, margin, seed, invert, autoIntro, audioMs: audio ? audioMs : 0 };
+  const { width, height, tile, margin, seed, invert, autoIntro = true, audio = false, audioMs = 0, audioMirror = false } = app;
+  return { width, height, tile, margin, seed, invert, autoIntro, audioMs: audio ? audioMs : 0, audioMirror: audio && audioMirror };
 }
 
 /** Validate desktop-compatible YUV420 parameters. Seed text is never trimmed. */
@@ -10700,14 +10902,20 @@ function validateSettings(input, defaults) {
   if (!Number.isSafeInteger(settings.audioMs) || settings.audioMs < 0 || settings.audioMs > 9999) {
     throw new Error('音频块长需要 0–9999 的整数（0 表示不处理音频）');
   }
+  // Settings saved before the mirror existed describe reversal-only uploads.
+  settings.audioMirror = parseFlag(input.audioMirror ?? defaults.audioMirror ?? false, '频谱翻转');
   return settings;
 }
 
 /** No truthiness conversion: the URL string "false" must stay false. */
 function parseInvert(value) {
+  return parseFlag(value, 'invert');
+}
+
+function parseFlag(value, name) {
   if (value === true || value === 'true' || value === '1') return true;
   if (value === false || value === 'false' || value === '0') return false;
-  throw new Error('invert 需要 true/false 或 1/0');
+  throw new Error(`${name} 需要 true/false 或 1/0`);
 }
 
 /** Explicit URL overrides only; avoid colliding with the site's own query fields. */
@@ -10743,7 +10951,7 @@ function descriptionSettings(text) {
 }
 
 /** What a remembered page holds: the plan, never the global preferences. */
-const PLAN_FIELDS = ['width', 'height', 'tile', 'margin', 'seed', 'invert', 'audioMs'];
+const PLAN_FIELDS = ['width', 'height', 'tile', 'margin', 'seed', 'invert', 'audioMs', 'audioMirror'];
 
 /** One page's remembered plan, or null when it is absent or unusable. */
 function pageSettings(pages, key) {
@@ -10754,6 +10962,8 @@ function pageSettings(pages, key) {
     if (entry.settings[name] !== undefined) settings[name] = entry.settings[name];
   }
   if (Object.keys(settings).length === 0) return null;
+  // Remembered before the mirror existed: that upload was reversed only.
+  if (settings.audioMs !== undefined && settings.audioMirror === undefined) settings.audioMirror = false;
   // Only 'intro' means a checksummed header proved this page is a VeilCast upload.
   return { settings, source: entry.source === 'intro' ? 'intro' : 'manual', savedAt: Number(entry.savedAt) || 0 };
 }
@@ -11011,12 +11221,14 @@ function silence(video, trace = () => {}) {
 
 /**
  * Starts restoring the audio of `video`, whose blocks of `blockMs` begin
- * `introSeconds` into the media (the intro QR second). `report(state, text)`
+ * `introSeconds` into the media (the intro QR second); with `mirror` the
+ * reversed content was spectrum-mirrored afterwards. `report(state, text)`
  * receives 'loading' | 'ready' | 'blocked' | 'error' with a message.
  * disable()/enable() hand sound back and reuse the prepared WAV and media
  * element. destroy() additionally cancels work and releases the cached URL.
  */
-function createAudioRestorer({ video, blockMs, introSeconds = 1, host, locate, report, findAudioGrid, reverseAudioBlocks, encodeWav, trace = () => {} }) {
+function createAudioRestorer({ video, blockMs, mirror = false, introSeconds = 1, host, locate, report, findAudioGrid, findAudioSync,
+  reverseAudioBlocks, mirrorAudioSpectrumAsync, encodeWav, trace = () => {} }) {
   const abort = new AbortController();
   const audio = document.createElement('audio');
   audio.dataset.veilcastAudio = '';
@@ -11176,19 +11388,27 @@ function createAudioRestorer({ video, blockMs, introSeconds = 1, host, locate, r
       stage = 'restore';
       const channels = Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i));
       const nominal = Math.round(introSeconds * AUDIO_RATE);
-      const grid = findAudioGrid(channels, { sampleRate: AUDIO_RATE, blockMs, nominalStart: nominal });
+      // A mirrored upload marks its content start with a chirp in the intro; the blind grid search is the fallback.
+      const sync = mirror ? findAudioSync(channels, { sampleRate: AUDIO_RATE, nominalStart: nominal }) : null;
+      const grid = sync?.confidence >= 20 ? sync
+        : findAudioGrid(channels, { sampleRate: AUDIO_RATE, blockMs, nominalStart: nominal, mirrored: mirror });
       const start = grid.confidence >= 2 ? grid.start : nominal;
       const block = Math.round((AUDIO_RATE * blockMs) / 1000);
+      // Undone in the opposite order: the mirror ran after the reversal, anchored at the content start.
+      if (mirror) await mirrorAudioSpectrumAsync(channels, { anchor: start, signal: abort.signal });
+      if (destroyed) return;
       reverseAudioBlocks(channels, { sampleRate: AUDIO_RATE, blockMs, start: ((start % block) + block) % block });
+      // The intro second (QR picture, sync chirp) stays silent.
+      if (mirror) for (const data of channels) data.fill(0, 0, Math.max(0, start));
       const wav = encodeWav(channels, AUDIO_RATE, { offset: start - nominal });
       if (destroyed) return;
       objectUrl = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
       prepared = true;
       const shift = ((start - nominal) / AUDIO_RATE) * 1000;
-      readyText = '音频已还原 · 块长 ' + blockMs + ' ms · 对齐 ' + (shift >= 0 ? '+' : '') + shift.toFixed(1) + ' ms';
+      readyText = '音频已还原' + (mirror ? ' · 频谱翻转' : '') + ' · 块长 ' + blockMs + ' ms · 对齐 ' + (shift >= 0 ? '+' : '') + shift.toFixed(1) + ' ms';
       audio.src = objectUrl;
       audio.load();
-      note('prepared', { channels: decoded.numberOfChannels, offsetMs: shift });
+      note('prepared', { channels: decoded.numberOfChannels, offsetMs: shift, mirror, syncConfidence: sync?.confidence, gridConfidence: grid.confidence });
       status('ready', readyText);
       follow();
     } catch (error) {
@@ -11244,7 +11464,7 @@ function createAudioRestorer({ video, blockMs, introSeconds = 1, host, locate, r
     note('destroyed');
   }
   try { enable(); } catch (error) { destroy(); throw error; }
-  return { blockMs, get mode() { return silenced?.mode ?? 'inactive'; }, enable, disable, destroy };
+  return { blockMs, mirror, get mode() { return silenced?.mode ?? 'inactive'; }, enable, disable, destroy };
 }
 
 // Source: src/diagnostics.js
@@ -11397,7 +11617,7 @@ function createIntroReader(video, {
       }
       // This callback is synchronous. Latch only AFTER the UI accepts the plan.
       note('apply-start', { scanId: run.id, width: header.width, height: header.height, tile: header.tile,
-        margin: header.margin, invert: header.invert, audioMs: header.audioMs, hasSeed: header.seed !== null });
+        margin: header.margin, invert: header.invert, audioMs: header.audioMs, audioMirror: header.audioMirror, hasSeed: header.seed !== null });
       if (onHeader(header) === false) {
         note('apply-rejected', { scanId: run.id });
         state('error', new Error('片头参数未成功应用，请检查设置后重试。'));
@@ -11600,6 +11820,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, createIntroRea
         </div>
         <small>填写加密前的尺寸，而非当前播放清晰度；五项参数需与加密端一致。</small>
         <label>音频块长 ms（0 = 不处理音频）<input name="audioMs" type="number" min="0" max="9999" step="1" required></label>
+        <label class="check"><input name="audioMirror" type="checkbox">音频频谱翻转（与加密端保持一致）</label>
         <label class="check"><input name="invert" type="checkbox">反色（与加密端保持一致）</label>
         <label class="check"><input name="autoIntro" type="checkbox">自动读取片头二维码并启用还原</label>
         <button id="from-description" type="button">读取简介参数</button>
@@ -11668,6 +11889,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, createIntroRea
     function fill(values = settings) {
       for (const name of ['seed', 'tile', 'margin', 'width', 'height', 'audioMs']) form.elements.namedItem(name).value = values[name];
       form.elements.namedItem('invert').checked = values.invert;
+      form.elements.namedItem('audioMirror').checked = values.audioMirror;
       form.elements.namedItem('autoIntro').checked = values.autoIntro;
     }
     // The first second of a VeilCast upload is a QR code carrying the plan.
@@ -11721,6 +11943,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, createIntroRea
         margin: header.margin,
         invert: header.invert,
         audioMs: header.audioMs,
+        audioMirror: header.audioMirror,
         seed: header.seed === null ? settings.seed : String(header.seed),
       });
       if (!apply()) { log('qr.settings-rejected', { mountId }, 'warn'); return false; }
@@ -11751,7 +11974,8 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, createIntroRea
     function syncAudio() {
       const wanted = !dead && enabled && settings.audioMs > 0 && Boolean(audio);
       const source = video.currentSrc || video.src || '';
-      if (audioRestorer && (audioRestorer.blockMs !== settings.audioMs || audioSource !== source)) {
+      if (audioRestorer && (audioRestorer.blockMs !== settings.audioMs || audioRestorer.mirror !== settings.audioMirror
+        || audioSource !== source)) {
         audioRestorer.destroy();
         audioRestorer = null;
       }
@@ -11772,6 +11996,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, createIntroRea
         audioRestorer = audio.createAudioRestorer({
           video,
           blockMs: settings.audioMs,
+          mirror: settings.audioMirror,
           host: shadow,
           locate: (signal) => audio.locateAudio(video, audioUrls, { since, signal }),
           report: audioReport,
@@ -11872,6 +12097,7 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, createIntroRea
       try {
         const values = Object.fromEntries(new FormData(form));
         values.invert = form.elements.namedItem('invert').checked;
+        values.audioMirror = form.elements.namedItem('audioMirror').checked;
         values.autoIntro = form.elements.namedItem('autoIntro').checked;
         values.audioMs = form.elements.namedItem('audioMs').value;
         settings = validateSettings(values, defaults);
@@ -12107,18 +12333,18 @@ function installUserscript({ createRestorer, scanIntro, decodeQr, createIntroRea
   return { dispose };
 }
 
-const diagnostics = createDiagnostics({ version: "0.1.11" });
+const diagnostics = createDiagnostics({ version: "0.2.0" });
 try {
 installUserscript({
   createRestorer, scanIntro, decodeQr, createIntroReader, validateSettings, querySettings, descriptionSettings, videoPageKey,
-  diagnostics, introVideoState, scriptVersion: "0.1.11",
+  diagnostics, introVideoState, scriptVersion: "0.2.0",
   iconUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAetklEQVR42tVbeZAc1Xn/ve6ea2d3tZe0OhYJCUmABDaHsLExlgBz2AVJHEPipGznqPIfqZSrfMROlasSSrZz2XFSuZxK7MRXEicSBkyMQbLALJfRwSFAAkuIRauVtPc5u3N093v5vu+97umV1glOpVLJomFmevp43/37jhfgTf9phbvu8baPHlH2+46lT9uB/9G/ytlj8rzWVZtN8j35vNRf/9Exg913asAzb+b+6r884+67PRzdqrD7l2L8P/q7665d/u4tRwx27tT/XQYobL/bR//OiL/03XJ3Vz6fv1Ip7yKtgrLv+4jhEaM9OdmXd5+uUoaPeZ6ie9MxPzD87ilD3wM5pSkd0iqPD9BxYxTfQkNpGG2vpW9QdC59t980XamUVsYg5mvB19HnSK6HiSo6DE9U6pMvnLn/sxP8hO3b7w76+3ey8MybZwBL3XFu3c2fvUIVyr+jvPxtXq7Y7QUFKD+ALFAlDFBMOHhFiggSSvg3PkaflXLn8G/uuH20kXe+xh5jOtKP8rt89/jeBjqO5Td7pbGXG+KXoeOG+RRBh1XEjYVJE4cPx7X5L5+475PPnUvTf86Au+7ysXu3qPu69+78IhH8aZVvowfF9DxFrPa0JVwJMbx4Ya1iKfvpcchvvNqASRSqDB9zWmOJVI5g5ZimRKByMGEA6wf/RoTGWkMlupGcY7RlJDPAsP7EdIbO8f3i2hwxZOHPj+/62Cctbbv8c01ZLSn5jbcV1m58+0O5lq4b4igk9vp8ka/8nDyeCfFEmkyUlaYQzcfQJMYT5qimVjgtEAbCpFojdCh3Dz6ujSPevstREbGwTPFHYQDz1RFuGcHfSSMQGx1HMXTk+0Heb1TGHw9HJ2492b+zdq4mqHOYIWxde8vvP+63dFxv4qhGxOdo0YpNzErKlyWphAGwx60peE7l6ZjvG+aZcgQnZpGYhAgwNQUsNgtj3FLsi4lUliFs6Epr+11+E7PRzWscM0STyCTo1VBBvhjOjz392j2fuC71Pc4PeU3V3yWf+27+7Ff8Uvv1caNeo5vk6UVMtVwmGzNsZ+RsyCJCeZGOQWv+Lg+TdzlfO0Ks4OzamBTjlq1Uxisp9/MSjiq5h47lRZI1/FzNz2ebd+vgd61Dljy9u3Pl2Sqvw1otKHW+c8P7v/T3ltZ7vMUa4Ox+zQ2fujEodjxCPAzFPSur7iJhezP7mY87tXdaQKeRtEVDAnhBnjXCsPIoFVhP74nWGNEICRV8rhKJillByT/n2JR8ZJtm3yPMD5PP9I/s3OjUTzQZbd+T9SaOX65jD2riXDQ/fvPAD3buS/xBIGds2WL9mF/4PVlsHHNsAYcXIzfWGacDawbGSc46O/rzjOcFRHOeLJDdRp6OKLYCK+3YSAizhps4PKsVwgT+T1si+BfSKiHSSj5y2sbrCRVpJ32OFzs/1dQY60vgnLDPIVnoEL/ll36PftoHxghCgZP+6ps+eWXgtz5nrMNTVsXrqaqZKLReOBdY7opn5gjOsd46xZgeplUBxXIXndcCCZmkDcrLOUfoWycofsG3vEi4mnVJbGaQ+E7raNDXuqwlrMwgWpiGnzOOAcygjP1nfAr7Go80EH4BHq3F59DNxhyHQVSdv3pwz87nmPZg++gW1S8uvnCrlyvRMxt0ZxNEczNY8bt3In/tFuiZeZRbChj8u+9hcNP1CMod8Koa9aka3nN4D/7qtl/AVM2q3u9895s4OjWC9o7VxAzivnLOUSTOQuVQSIz0lbjVLOlW5Z1EyQysjVsGNGbGERQa2Pa5X0L5gh4SSCJ16wgTo9bJZ7pPvtyCiYPHcejPHkCxs4dDifaJRhM2bqUznmPag/7UktQV1gvx5eRA6lXMvngMne9/NxrdJNG8h5abroB6dgrR+i1QZ+hRnR72By/T4qpYt3yjgLwPXnY9PvPQP6Kt3MlSJnol9nNYEMIZRgi5Eq48YwxUJgA5e9ep2uuoRuY/j8bUsLp056+g912Xoxo6RXJuPGFAwgR5JzHm6JyjLz8otDTZLCZ5peQNK7Yaj5IXbRngrXJLULwA1dqKyvefxMLrZ1Cnm42NNUxl46UonXkFOEMrmKwjGAPmSlvxtQP7MTsHHBmqYlPXVVjb2oH5yhhJqa5M1GCkxrqHpqM3/EfS5XBkBMlJKIMDNS6aaL6WolhjakK1bOhC546rMDXXQFhvoL7QQKNKr3n6PG+/16vJsbq41vETQxh44AkERIuYCtPGz1NqpfV9R4gBO++2zkCpvDMeWYNXKMLM1TF3/2OYL3mYjvJqqr0devOFUAMDMKxKNTq/fRMemPYwNDqF6VoJ81EZV69+B6rzxB0mgOwY8oqtZEXCzttbRjDHiWhnz9o5Pgq1kPBG6j87jlW/cB10MYdGZEDxQF4NojKyBkXmZl/sZ0W3iIzXv7sPETEnKLakcF2cOoV3oZVoD9J4qBKUzVGJDhOQCrp6UL33URTpboWghKomos+cgf/ifjKD9yKeIA74K3HybIT7frwXW9a+F5PzGutbrkGbeQiN+gxy5Ag1OyKWqvYFf1j7dtFQS/CzrstkmBA3iA8NFc5MorC6DZ03XYvqbCxRh3gp5sZEsroHLuwlOYJXLGJ2ZBKnHnwKxe5egeNMkw3p3iKYESzGxc4lSegg711uR3xyBJcSn1fc+S6MDQxj3qzH6Px3sWbHMGqkWo3pY6hWWnH/A4/hIBlnGHnIE6H5jk4sLMzCz7ezNzaGQiRLFtpZq8cuERYPIAFLFGxNg2O+stGHPP8USf8DN8N0ltGYqNO9bB7hLuYAJExNCCGzQr4EvPG9H6E+sYD29esFzGYTLs9r1gpSBlhc4VmIImokGQd8sudjT7+E0m9/CHGhGx4rz8ANqHcatN54Lcj0QcEGtVILovH18NZuxmwFKJ64FJX7vghdrkLFZE6+04CYn+FL3kvAwdm+ZT75AvIZDOFD9tQqqszB7wjQcev1qM6wkCm0xZJvCR895XCTsZk4J95BLofqXBUnv/soCp0rSPBFYYClTVsNMM18c5E+WJyS4Htf7ppf1onZwycw/OhBsjtg6kQd1Z6NGHr0MCZJVcdnajhNmffkms04e+QQKFph5jT5jpbLjNfVRzY4mYAYY23b2bjYv8XLEviy9h/X6a1u6hNn0bbjCvirl6NRIW0gACgvcg/8okgoL74LXx6T9P2ij8GHnsDCqQkUOpaL6jMtaU6imjWMRQxQDF1drE4cBscaLyAQUWjDyK49IEeLebLnhd5uTOtVqBwbwIJfNNNnq2ahZT1mFBF+dhKVWmAqdXrYundBVyfJl9UZWCkBLokzjGNl0SlJXV5RE3TR57haIa2po/29O1CrsEtSgo8oFWD3JDiIEbG8W96BNapGIWtw9w+Rb+8h0y8xInXZZ6pni2ojXlb+cCmmxfpJxucjRyCi8uxP8MaHfgszf/R51B/Yg9qswvSPDqNKpzS8klxaX3MpFgZeJI/BBxsob7oWKLRA16YZzBhJmEgDOFmB5O7aYnpLjTBH1J+d3+SIarn6YvjrL0J1qiGSb7DUI/HPjIMImZqU+IiBUTmH4f6DmD1yEoWuFeLLktoEXLot5JlmFtz0AU2NtN7F8URUyC+RMyvDzIZoaSVY871vIyCjrD5C8XbvYzCrLlNm+cVQpV6YhYMol6Hai3nTs6oH/tZrMfn8k4QeexQT53GBhCTFtEtqbJRLYWNJeMDwu0FVnaiCtvfdhNqCRcYJbtQWeaf+2pqrEbzPjBj61z3IFZeRryIo7iC4Lby4ypFCtuSUiQI6UxtwubpAV35EYPG0Duoovu/T8KcKaJw9jcbYEKKj/46+0R+i0diDmakqGjWqFJ5+BfUNW1VwzVXou+IyTL7wJDm1Ki2+IAzleqINeS6forAoKawgP4r7U6PIX9KH4LKr6HMIVyyU5Ea8fmBp4HCorGHBa81j8tlXMX3wFZRXbaJz8/Qoa/8mSasz7vZ8BqhFiNSWsaQU49sqS6GMcOw05p64F3Hvr1BM7jVxxxqEm5apHR86jdV33ITBQy9j7o3TOPmd76Fx+B68+vxuwkJk2ygiLs8jIJtEnCMiA5sLeTYWSopLYIk1hBkQz0+g/bY7yMF5iOrEgMC3y2O+eU1Qy1GAGSPojig5s/thWivVb8hncQImsD4ps8FkpLsUDlCpA0hMwgJuo633JGfil7oRHu9H3PZzZJN5eiip7JoO8/rhA6rtDjr9ysvQvu0y017qUutPGSzbdDnGjh3B8OHncerAM6SWZBsUllinlRS2koJH7LLPBqKZSeP1dargyusojrO/IH8U2nivmNjArZJrzKwYZLYeJWpzx05j/EcHUFx+AS0774CPb81YzvckjFrovVQY1NlipOOxMZlqLqluSycUhTU98iTinpwyG6hG+M6VaoQ84dRcBRPjDZx4Azhdb8UYIUZdKqG4YRv67vgoIbIeSmcnhUhjqzYUBSIGR8pWejjrqxGwGlbFG69H6LegsRAKirbeP/WVlmdanCE7UhAewzQ5ZkMoNN/aJQxQmQq0ypbezvnzzquPGr1E2VilWuAVOpF7Yxe6aruQG7gf/vjLBFJmcOKVIbxB6cTZCtRc4SJMz85TpCB8MDxvxicJGG24lkLbZFpGs/W6pMwVctKDeGEGqrMA/+07KNVmL08m4E7lyySIJCGQllmismNHuYBoZAbDP3gche5VYvtctrexX5mk8izujHOGcwS9CAqbtN6u09QxKXlzqYvtyit1mmhsQG38xTUway7A1EtDGPNDFL/8TZQ3vxWvmiJ0y0qcHh1G3+kxVBrLMcf0rb1NqcN7EVFIzBEjjSzQ5Z+iEaT+VEcIbnkbwtZexGNU9fFt0cQ43K+0dXxF0vAu8qclSq39Mgj1EewdmSOT20TX8L0Dp8FexrGbNOcwGUfQZABzy7hipnIvZ/9JVGBIGRRbVYOc2pkHDmLFn1CRtbgWle5Lcd2/fR+f6bsD+wdew6nhaeyldPnEoa8Tw9aq2VGSZHABwkYJXjhFkLrd9hCSkhY5Pl2lGn4uRP76W8jz28Lt4iaJXf0yQrVdJWGIiakOWZ8JMXz/XuQ7e8nsS1IFSmJ/6vyMyWBm0yxELQ6DWjVtH5kSU9Ke8Bw+8Ey+e4Wae/xZmOeHsdCy0sSzy9RT1TpGqgrtK96Ky+is+swKzN52Cm0//x5MH38NZmIWc0++BSNf30NMqIhG2fIxR0GW/ii8q7dQhNmMcKRBzLbWGfhS2xAnuJyy2railYsmZJTvKGB8bz9qrxNk3nClS3oCMQGTWLc0dGzZlXEAFJYOg1KhMOd2jozlYioGSWTIzMrGm8upmT/9a1S23ajQcw0Gi90YGZ9BnZKik2Tz0412zL5wBtHPe6iv2wx1ET3s8m3A3kOIqXbgdRUT7E//qirWc8jfcCtVl6yNO0Aqjq6ct8RzW4bRIHcccjkCUwTNz977IHJt3QTXy+KjjE12LH7x0hqr04akdbCEDzDW0gVVmQxuUJlgYPODgBGW8pctR3zkON4yOIARfAMjlVl8ru3HeOuFt6NUvJg0eA1yZ1owyZkiEVUbqSIkFTXbroPatQt6WQ8/SzEGiKbGoDavQ3TBNkSjFvgkSriMCO8u2iDFzAgEnlCTdBkBn0MvoPLSa2jt20rXFJwGcMHBU2nLzJYdjAV6FjgoZc43AWnmcgFcOweYZupOEzRcT490kn0BocNpSj0/9v6P4rq+q6gvfxAHBl/Ggdf+AadmptGpLiQHOIba3wbQb303hbUe2/HacjuhtoepqDpL6LIsjRZdm0Kw44MEe4m0MLTOjwTZSeFtWcES7hprAoWNqweM3P8gNZ/LlAG22SKOFD5yysI4T/BFEy9bqO96kuebABPuJ/5RuVaU6wmk0dKZgzCBOB5QpviNxx7EDb++HW/fcCOu23QjXr9gEn+sdiN351UY2vcsvH39qHz1n4noLmD1BuhVVxMqXIZgboq0xFMxlbpNXzeizddDT8Riu5wQdrVTWTLniHcNZZs3GbGJ2Vdfx9yBF1Dq2SBrkZw/abnJ/3Tqy9LisRRiF4PBxcmQaap8M220miFalfgCxtfE8fa2Hjw79BoefekQLl6xDadn5k0UtamWeQIxV1+DFVdfQ0GRbvDtfQh3v0bUdCB++ocEWMYI5kbkDAkWU/HU/8BHUA/JPKjhoal7RMUfTuyEeD8JzwlMp5wf5BNG//1BKrQElGR1Zzy/cvbvEhtlXVviB5rgDj89HU5CR5MJzT59tq8nSY0kSEXc99JeOWu2TogQOZM7lcPZV1/FCIWz4depcrzyYoRUHNFbPwj9ti9BX/GXtMQ89CxVjrvLZCK3QE+xzDwsowJOkUuSoRWizgAf6S7lC6gOjWLuqacp5V0ttg/ftuKakcqBH45sWvyMo0KnZffzGZDmyCbt0Z/bq09r9xYcEbTOoa2tFz8efAn7jz9LUNeoaeond0RbMHecFkkRaWEypCpfF3V0zqIxWEV1dIEKK8sRdd6AaOIE/HfdgDigpkWtbspkvgUPi9CfRC5t6dIRJ2WELvfuIa42qFzXk1Z8uLVjBa2cyltzVunSbdtdpe2Tc3GA1AP04tZ0VguMZbBp4mrFMTegzKteKeIrR76KrZdvx/wQtcgIBNX2jWNu9ZUwY3lFeoqYCxRjM/TolQYLVC9R25Hr+BbMNe8jRsAUqfFC1Sw0ksTH1u/hKuZUC6TFc1l8ooK5xx5FvquPrLBIS8hlZg6weM1pNGu2zpw2LIEDXHYm2ESZc8ZUklTZSPLhGpuGMQH33vIlqgBTAO8l0EM9CYycGkXHnvuw8v5vYsbrxEyVssjhE8QAWmj5NlJLemy1F8FNn0BUvhDecEhFDMVtBNtyNJm6pbIpsCHb91pymNn3GMHkKbRs2Khs0mMZIBWsBLTJJEmCZG3ZiM3BZErn5zGAY2O2w9rkmMlGDYcsnL+BTdJz1AabHTyNow/vwbrbPoSgdzkK66aw4Y4WlK6+CuMvn8TYMxHe+PaP6PQ56idQqyqkIss7Keef8GgREXV8qUjsBClQPm56fimGECSMF2LMPrqH6n291Hwtie0LolRJLm8swZkczpoyEvG6YQqcnw5bVGpSwKOz6KkJoZxfsJ0UO+DEC8hRCXolBp55AhNnZzAxQvN80XIM7D+BaUqEZsvrjL7mdviXXAN91Z0wl1yO3M3diItExEIkIjbatg6FBsa+pPKJ/XM48EoB5l94BuHJQapRrrRZnxvBkfw+QXiu0SJFFntMpTLXmVLf+U7QNSWd41PZCkrGISoXSxflF6IFXahMTGHo2adQJZ7MFSlTPDFP6XCsRgaqOHOK7JurQ8MD3DI3ubdci2gyJ/djaXMnjImGkzhPyknuL7BYsAFmH3kQeapJePk2HrTgZotAX5MW153TdiqfoEFjktpL4tTjpRjQvHhR+UibtKnp2pr25TTNuCkS1luOyaOHHsL04ZcQzUaonAowPDSL6biEhSmipUA9yaGXkVvlq0hRw5LbvIbK8dqkNVF5OcLti+M+NTuoshQefwW57j4e5FCMRtWifpZJK1lOzbN0KRv6tAC+OGomA97itMdxTMfNHl1CcHLjTIHRmGTOTyAocoT2GmfPoOH9AIUtj9ODXsHsbqoL/vgZheOjZOSkuvMD8DeuJm8e2NJDRPRHkhLIIBakL0o/hSZlAueplf7vE+ylSi+l0oL6XMZn0lDn5piQdF6NmxVyAMJkhyn0UumwTC/Qm7Z9pgRKqgQjuRKuZ1USyqRjMknBhMMd9QKppRcr9fHboW6/GeHh08CLpPZDj1Hl4hSC5Qvk+btgxsO0Iq7Z53s2smi5NfGCxokMOwCqfjROnUL9yEGUuta7aRM2HV/ZDo/Jwt9MKNeZAS1j52/k4+Kh0eC8uUmT5AqJX3VmIWXcZBhJuyDhN+GymEEOfnevajxyCI2HjyBatdWYImH1CzfA5HnG8gV4b+tQ9TnXgXNmKqRK+BXeGstwyx1myMLTD8Gnc30Kt+T8jK11qYzk0/E41QT7xlU/xWcphwzdNep8E9B2ts3N5el0BDV5gIWRzYksZExCnIybGuWStO+1QN3HRUr68SQBg0H6cPIE9RlJ19cQMxoC8lUKdSOZhqGeF7/zOAHsaB7B3HB8Go0j1FhZxsCHWl0EfFQC+tLIZdW+af/pWB1rhDHJ7EEChc0STtD6P3uxTqVsmiVj8UxJ8dgsnt+TATfrCNkU/K6VCPYfhDo6pEy1ADND1dHxIeVvI9vnGaGclqK+W7qKY6R9P872jAyDaW5JoP7CI5Q6U0+htZvTcGPDrp/FuGziXFk2rsNkjLzYjliztJ0tFGakoctbIgpEChkONlWJnYN2tqGbk5jpJEeSdmmLs9g+Sx0IGtSz738UmIiUNzSgWt/Ti3DjWnpMZEs7XmpNvF6pyGnbAFW0XqoQ+dRZpnmDI/uQa18pra6k4qNllspJM44Tp60cmEknUVwIT5O8zEitPr87bJwDyGBnwRICITOH3Qxvk1HW8xo34yfDFVw+p8pu8Y0D6LluBm0fvwThLVtkftDjaZW8a295TtUjF/5CIpyYEIeR0bnAhD95At70MCU9KznnJ/8QOFsWqbsopVPCOJJoWa+2M4dO9RWQjKjZc/US3WHbZ02qPwmnbMnK+gLtzCJjGioFUM0aurET4n4b9ebHplF78R7U30nZII+65+lcwvzCANu5MklylmpBSDVCsvVwYlKZQ/9CCdMFZDJFAT62FISECJVKdLGE+UYmTXvdPEK6bnuecwI7SQZ3/bJlQhyPJY4jVSNtVcqOTLgOrm1luXZ2MpScmIMLOzIUmaeQdwHMV6j8dfffI1hLptGihAlUVbdjJX4iAmXL4KT7mmeK5mjiYs9nkaP7Bq29RlQfKgFg0gYW23EDF8iqt9FNxkA7f5BoirGf43DUjghvJQbQsKCbz3sRCQeTiCA1NW5dJamyAPNmhpJqRIy0zy8PgmgBQVYULrzEeP/4fagv/A1NegSWCQU6gbJkFOwIoWgSt324bzg1pIK9n1IFKp0HnevsiIuXt/PEaeXaJB5eNlEYVzGxDBFnKGHF9dEyI7dh0ot8URjw+j5CEiuOWjcW1n9owhoEinCzMttUSG6ePKjJ7WZYRBYxwnZ+/CL5xDaVv3ALgm/thff5v4BaRcbfSuqcJ+by8EaeRUvTI6WiUuPHVKH/M1QXIAfafRHxsIWZotL9Ba6Nrpl4mWPOqngiBCtExyCVTKTY341Hk+MktsiWsDZM6UUdw64rfuM5L996pTYyDuRbcOOn0+H2s2+nqJTbDeLOMZJP+wrp7g83xUC41lDTU0fzKhr8CRrvewf0xz9D02e0nMEajZnwVh9ShWPPo/DUH6BABVO/fS0h3ZJLeXOuuZnk59ppQizbLRL/pByEd4hPNbWZfw/5O41nIRc3KgdHn/6LtyUezNr/9u2B8wN/6FRFwyz2sG4c0ZqFA0gC3KWxEXIAd2Nw8SKfIGMqlLx4BJNzF16K/MP74X/h8+TZa0qtIpVfQXWBgX6UnvoCClRkZeJ5IgU8aC07UJJ9QUYhY+fW7uMMMNPN89I2ssRVWReFXy1N2Eb1j90WAe+cHSO0lQQ7deflv3avV2x7P4UTWiGPWXiuzZTZJ5BWLnyk06Ve0Nw6o9z+AMEFyuJQZp5saqBcYHQQ8cpOxJuvoKrpGILjz1EasZxC5HJr80Q83GSXrVKbRQPV2bqlnbiMJbQlOL95LE4qqw3SomJcnbl3/OBXPpDdNhOc2y/PqzMfbtT7nqf21yZiApVuTEG6RazmMmPjNQsKSW3EcyPuCUMceJR9QFqlmyukq4QScr0b4FdocOqpJyy05STHtxNddqYv6eHG1vRSvKFcJMoWaJrqn2im7HVw1/NAAk2sF+Pa7E9yevDDNvr9tE1Tbu9Ay5a7VuaDlsfIH1xsZKuG7An0jB2kdHv9XAc22VGSbJoyza106fY5JBurjPXQtkaV7gKyRajsPoLMUIO0g86tUWR3isVNDXM43/aFxZZ5AjhHkn+lVp/dMf/iP41md8UtvW2O/UF/f9TXd21pvuvir5En/lV2RA7qhkljxPbvklTYb0pZFs5bY1x8c1qh3NxhtiCXqrZjYLIJK+lqNDs75yLUOC3PqSxER+qvcuKQaeqEnN53JkYXfhMnv1lLaPuvN05muNS19SO3mCD3aVr8u2m+J+8iQWbDpJspTDdK+s3J7KSNljLKaxKvVHMgKyNxA7NoWSqziyxNzbE457eFwASUkeDDBRpKjPppMu3Lk899de+5NL3JrbO8WZpQoruofetHLqLtsW+n0u16I25aGbc50IHqwK48YYz0Ui3g58DknTOiumg4i7nhyby7ZYlnMp8tuzydJN+6yQQpHMSS7rMxEjao0lkntFffP3PgawNNwv/tp26mVm9iFzLdgDdV/eebkP/P/cmm76NqKan/bAzIhsnt8P5XiaicVbRv3vzM1/Wzerw5gf0HqomqE+qRBqUAAAAASUVORK5CYII=",
   pageSettings, rememberPageSettings, forgetPageSettings,
   audio: {
     watchAudioUrls, locateAudio,
-    createAudioRestorer: (options) => createAudioRestorer({ ...options, findAudioGrid, reverseAudioBlocks, encodeWav }),
+    createAudioRestorer: (options) => createAudioRestorer({ ...options, findAudioGrid, findAudioSync, reverseAudioBlocks, mirrorAudioSpectrumAsync, encodeWav }),
   },
-  defaults: {"width":720,"height":1280,"tile":40,"margin":0,"seed":"20040821","invert":false,"autoIntro":true,"audioMs":0},
+  defaults: {"width":720,"height":1280,"tile":40,"margin":0,"seed":"20040821","invert":false,"autoIntro":true,"audioMs":0,"audioMirror":false},
   storage: { get: GM_getValue, set: GM_setValue },
   menu: { register: GM_registerMenuCommand, unregister: GM_unregisterMenuCommand },
 });

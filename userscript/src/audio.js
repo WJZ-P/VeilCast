@@ -216,12 +216,14 @@ function silence(video, trace = () => {}) {
 
 /**
  * Starts restoring the audio of `video`, whose blocks of `blockMs` begin
- * `introSeconds` into the media (the intro QR second). `report(state, text)`
+ * `introSeconds` into the media (the intro QR second); with `mirror` the
+ * reversed content was spectrum-mirrored afterwards. `report(state, text)`
  * receives 'loading' | 'ready' | 'blocked' | 'error' with a message.
  * disable()/enable() hand sound back and reuse the prepared WAV and media
  * element. destroy() additionally cancels work and releases the cached URL.
  */
-export function createAudioRestorer({ video, blockMs, introSeconds = 1, host, locate, report, findAudioGrid, reverseAudioBlocks, encodeWav, trace = () => {} }) {
+export function createAudioRestorer({ video, blockMs, mirror = false, introSeconds = 1, host, locate, report, findAudioGrid, findAudioSync,
+  reverseAudioBlocks, mirrorAudioSpectrumAsync, encodeWav, trace = () => {} }) {
   const abort = new AbortController();
   const audio = document.createElement('audio');
   audio.dataset.veilcastAudio = '';
@@ -381,19 +383,27 @@ export function createAudioRestorer({ video, blockMs, introSeconds = 1, host, lo
       stage = 'restore';
       const channels = Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i));
       const nominal = Math.round(introSeconds * AUDIO_RATE);
-      const grid = findAudioGrid(channels, { sampleRate: AUDIO_RATE, blockMs, nominalStart: nominal });
+      // A mirrored upload marks its content start with a chirp in the intro; the blind grid search is the fallback.
+      const sync = mirror ? findAudioSync(channels, { sampleRate: AUDIO_RATE, nominalStart: nominal }) : null;
+      const grid = sync?.confidence >= 20 ? sync
+        : findAudioGrid(channels, { sampleRate: AUDIO_RATE, blockMs, nominalStart: nominal, mirrored: mirror });
       const start = grid.confidence >= 2 ? grid.start : nominal;
       const block = Math.round((AUDIO_RATE * blockMs) / 1000);
+      // Undone in the opposite order: the mirror ran after the reversal, anchored at the content start.
+      if (mirror) await mirrorAudioSpectrumAsync(channels, { anchor: start, signal: abort.signal });
+      if (destroyed) return;
       reverseAudioBlocks(channels, { sampleRate: AUDIO_RATE, blockMs, start: ((start % block) + block) % block });
+      // The intro second (QR picture, sync chirp) stays silent.
+      if (mirror) for (const data of channels) data.fill(0, 0, Math.max(0, start));
       const wav = encodeWav(channels, AUDIO_RATE, { offset: start - nominal });
       if (destroyed) return;
       objectUrl = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
       prepared = true;
       const shift = ((start - nominal) / AUDIO_RATE) * 1000;
-      readyText = '音频已还原 · 块长 ' + blockMs + ' ms · 对齐 ' + (shift >= 0 ? '+' : '') + shift.toFixed(1) + ' ms';
+      readyText = '音频已还原' + (mirror ? ' · 频谱翻转' : '') + ' · 块长 ' + blockMs + ' ms · 对齐 ' + (shift >= 0 ? '+' : '') + shift.toFixed(1) + ' ms';
       audio.src = objectUrl;
       audio.load();
-      note('prepared', { channels: decoded.numberOfChannels, offsetMs: shift });
+      note('prepared', { channels: decoded.numberOfChannels, offsetMs: shift, mirror, syncConfidence: sync?.confidence, gridConfidence: grid.confidence });
       status('ready', readyText);
       follow();
     } catch (error) {
@@ -449,5 +459,5 @@ export function createAudioRestorer({ video, blockMs, introSeconds = 1, host, lo
     note('destroyed');
   }
   try { enable(); } catch (error) { destroy(); throw error; }
-  return { blockMs, get mode() { return silenced?.mode ?? 'inactive'; }, enable, disable, destroy };
+  return { blockMs, mirror, get mode() { return silenced?.mode ?? 'inactive'; }, enable, disable, destroy };
 }

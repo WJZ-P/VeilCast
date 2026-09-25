@@ -3,8 +3,8 @@
  * keeps a block length even while its audio switch is off; here 0 means off.
  */
 export function userscriptDefaults(app) {
-  const { width, height, tile, margin, seed, invert, autoIntro = true, audio = false, audioMs = 0 } = app;
-  return { width, height, tile, margin, seed, invert, autoIntro, audioMs: audio ? audioMs : 0 };
+  const { width, height, tile, margin, seed, invert, autoIntro = true, audio = false, audioMs = 0, audioMirror = false } = app;
+  return { width, height, tile, margin, seed, invert, autoIntro, audioMs: audio ? audioMs : 0, audioMirror: audio && audioMirror };
 }
 
 /** Validate desktop-compatible YUV420 parameters. Seed text is never trimmed. */
@@ -36,14 +36,20 @@ export function validateSettings(input, defaults) {
   if (!Number.isSafeInteger(settings.audioMs) || settings.audioMs < 0 || settings.audioMs > 9999) {
     throw new Error('音频块长需要 0–9999 的整数（0 表示不处理音频）');
   }
+  // Settings saved before the mirror existed describe reversal-only uploads.
+  settings.audioMirror = parseFlag(input.audioMirror ?? defaults.audioMirror ?? false, '频谱翻转');
   return settings;
 }
 
 /** No truthiness conversion: the URL string "false" must stay false. */
 export function parseInvert(value) {
+  return parseFlag(value, 'invert');
+}
+
+function parseFlag(value, name) {
   if (value === true || value === 'true' || value === '1') return true;
   if (value === false || value === 'false' || value === '0') return false;
-  throw new Error('invert 需要 true/false 或 1/0');
+  throw new Error(`${name} 需要 true/false 或 1/0`);
 }
 
 /** Explicit URL overrides only; avoid colliding with the site's own query fields. */
@@ -79,7 +85,7 @@ export function descriptionSettings(text) {
 }
 
 /** What a remembered page holds: the plan, never the global preferences. */
-const PLAN_FIELDS = ['width', 'height', 'tile', 'margin', 'seed', 'invert', 'audioMs'];
+const PLAN_FIELDS = ['width', 'height', 'tile', 'margin', 'seed', 'invert', 'audioMs', 'audioMirror'];
 
 /** One page's remembered plan, or null when it is absent or unusable. */
 export function pageSettings(pages, key) {
@@ -90,6 +96,8 @@ export function pageSettings(pages, key) {
     if (entry.settings[name] !== undefined) settings[name] = entry.settings[name];
   }
   if (Object.keys(settings).length === 0) return null;
+  // Remembered before the mirror existed: that upload was reversed only.
+  if (settings.audioMs !== undefined && settings.audioMirror === undefined) settings.audioMirror = false;
   // Only 'intro' means a checksummed header proved this page is a VeilCast upload.
   return { settings, source: entry.source === 'intro' ? 'intro' : 'manual', savedAt: Number(entry.savedAt) || 0 };
 }

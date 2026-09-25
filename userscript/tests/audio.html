@@ -13,8 +13,8 @@
   [data-result=fail] { color: #fca5a5; }
   li { margin: 2px 0; }
 </style>
-<h1>音频分块倒放：浏览器端还原</h1>
-<p>先跑 <code>cargo test -p veilcast-app --test audio_pipeline</code>：它把 250 ms 倒放的加密文件再按 AAC 64k 转一遍，
+<h1>音频频谱翻转 + 分块倒放：浏览器端还原</h1>
+<p>先跑 <code>cargo test -p veilcast-app --test audio_pipeline</code>：它把频谱翻转 + 250 ms 倒放的加密文件再按 AAC 64k 转一遍，
    生成 <code>platform.mp4</code>（元数据已抹）和 B 站式的纯音频分片 <code>platform.m4s</code>。
    第一部分直接检验解码、找栅格、倒回来的结果；第二部分检验油猴脚本读到片头后自动下载、还原并同步播放。</p>
 <div id="arc_toolbar_report"><div class="video-toolbar-left">
@@ -38,9 +38,9 @@
 </script>
 <script src="/userscript/veilcast.user.js"></script>
 <script type="module">
-  import { findAudioGrid, reverseAudioBlocks } from '/viewer/veilcast.js';
+  import { findAudioSync, mirrorAudioSpectrum, reverseAudioBlocks } from '/viewer/veilcast.js';
 
-  const FIXTURES = '/target/tmp/audio-job-reversed';
+  const FIXTURES = '/target/tmp/audio-job-mirrored';
   const SOURCE = '/target/experiment/d49672a5defc39413b8979e3dfb5f134-yuv420p/source.mp4';
   const RATE = 48000;
   const summary = document.getElementById('summary');
@@ -84,14 +84,16 @@
     for (const name of ['platform.m4s', 'platform.mp4']) {
       const channels = await decode(`${FIXTURES}/${name}`);
       const exposed = snr(source, channels, RATE);
-      const grid = findAudioGrid(channels, { sampleRate: RATE, blockMs: 250, nominalStart: RATE });
+      const grid = findAudioSync(channels, { sampleRate: RATE, nominalStart: RATE });
       const naive = channels.map((c) => c.slice());
+      mirrorAudioSpectrum(naive, { anchor: RATE });
       reverseAudioBlocks(naive, { sampleRate: RATE, blockMs: 250, start: RATE });
+      mirrorAudioSpectrum(channels, { anchor: grid.start });
       reverseAudioBlocks(channels, { sampleRate: RATE, blockMs: 250, start: grid.start });
       const aligned = snr(source, channels, grid.start);
       const unaligned = snr(source, naive, RATE);
       report.push(`${name}: 偏移 ${grid.offset} 样本，置信度 ${grid.confidence.toFixed(1)}，还原 ${aligned.toFixed(1)} dB（不对齐 ${unaligned.toFixed(1)} dB），上传 ${exposed.toFixed(1)} dB`);
-      assert(grid.confidence > 2, `${name}: grid confidence ${grid.confidence}`);
+      assert(grid.confidence > 20, `${name}: sync chirp confidence ${grid.confidence}`);
       assert(aligned > 10, `${name}: restored SNR ${aligned.toFixed(1)} dB`);
       assert(exposed < 3, `${name}: upload SNR ${exposed.toFixed(1)} dB`);
     }
@@ -108,6 +110,7 @@
     await video.play();
     await until(() => ui().dataset.enabled === 'true', 'the intro to enable restoration');
     assert(panel().querySelector('[name=audioMs]').value === '250', 'the intro QR sets the audio block length');
+    assert(panel().querySelector('[name=audioMirror]').checked, 'the intro QR switches the spectrum mirror on');
     await until(() => ui().dataset.audio === 'ready' || ui().dataset.audio === 'error', 'the audio to be restored', 30000);
     assert(ui().dataset.audio === 'ready', `audio state ${ui().dataset.audio}: ${panel().getElementById('audio-status').textContent}`);
     await until(() => ['captured', 'muted'].includes(ui().dataset.audioMode), 'successful audio handoff');
